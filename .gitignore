@@ -1,0 +1,22 @@
+# === Python ===
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+
+# === Project Specific Data (checkpoints, logs, data) ===
+# We ignore the actual data files, checkpoints, and logs, but keep the directory structure and .gitkeep files for checkpoints and logs.
+data/checkpoints/*
+data/logs/*
+
+# Keep the directory structure and .gitkeep files for checkpoints and logs
+!data/checkpoints/.gitkeep
+!data/logs/.gitkeep
+
+# === OS specifics ===
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
