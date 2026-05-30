@@ -18,6 +18,7 @@ echo "Installing Python dependencies..."
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
 # 3. Create local directories for logs and checkpoints
 echo "Creating necessary local data directories..."

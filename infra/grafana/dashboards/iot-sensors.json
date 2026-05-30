@@ -1,0 +1,20 @@
+{
+  "__comment": "PLACEHOLDER — Export the real dashboard from the Grafana UI and replace this file. See CLAUDE.md for step-by-step export instructions.",
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [],
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "tags": ["iot", "sensors"],
+  "templating": { "list": [] },
+  "time": { "from": "now-5m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "IoT Sensors — PLACEHOLDER",
+  "uid": "iot-sensors-placeholder",
+  "version": 1
+}
