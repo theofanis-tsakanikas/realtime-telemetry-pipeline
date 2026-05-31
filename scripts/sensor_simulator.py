@@ -1,3 +1,15 @@
+"""IoT sensor simulator: a Confluent Kafka producer.
+
+Generates synthetic readings (temperature, humidity, pressure, timestamp) for a
+configurable number of sensors and publishes them to a Kafka topic roughly once
+per second per tick. About 20% of messages contain deliberate data-quality
+anomalies (nulls, wrong types, extreme outliers, missing keys) so the
+downstream Spark cleaning logic has something to filter.
+
+Configuration is read from environment variables (loaded from ``.env``) with
+sensible defaults; see the constants below. Handles SIGINT/SIGTERM for a
+graceful, buffer-flushing shutdown.
+"""
 import os
 import json
 import time
@@ -29,7 +41,7 @@ RETRY_DELAY = int(os.getenv("RETRY_DELAY", 3))
 # ============================================================
 # ⚙️ Kafka Setup Functions
 # ============================================================
-def create_kafka_topic():
+def create_kafka_topic() -> None:
     """
     Creates the Kafka topic if it does not exist using the AdminClient.
     Uses futures to wait for the topic creation result.
@@ -55,7 +67,7 @@ def create_kafka_topic():
         print(f"⚠️ Admin client error: {e}")
 
 
-def connect_producer_with_retry():
+def connect_producer_with_retry() -> Producer:
     """
     Attempts to initialize the Confluent Kafka Producer.
     Retries connection multiple times in case the broker is temporarily unavailable.
@@ -109,7 +121,7 @@ def generate_sensor_data(sensor_id: int) -> dict:
 # ============================================================
 # 🚀 Main Application Logic
 # ============================================================
-def main():
+def main() -> None:
     """
     Main entry point for the sensor simulator.
     Ensures topic exists, connects producer, and pushes messages indefinitely.
@@ -120,7 +132,7 @@ def main():
 
     print(f"🚀 Starting sensor simulator... Producing to topic '{KAFKA_TOPIC}'")
 
-    def handle_exit(*_):
+    def handle_exit(*_) -> None:
         """
         Gracefully handles SIGTERM and SIGINT for clean shutdowns.
         Flushes pending messages in buffer and closes the producer.
