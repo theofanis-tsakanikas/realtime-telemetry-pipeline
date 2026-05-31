@@ -2,11 +2,48 @@
 
 # 📡 Real-Time IoT Data Pipeline: Kafka ➔ Spark ➔ Redis ➔ Grafana
 
+[![CI](https://github.com/theofanis-tsakanikas/kafka-spark-redis-streaming-etl/actions/workflows/ci.yml/badge.svg)](https://github.com/theofanis-tsakanikas/kafka-spark-redis-streaming-etl/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+![Apache Kafka](https://img.shields.io/badge/Apache%20Kafka-231F20?logo=apachekafka&logoColor=white)
+![Apache Spark](https://img.shields.io/badge/Apache%20Spark%203.5-E25A1C?logo=apachespark&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis%20Stack-DC382D?logo=redis&logoColor=white)
+![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)
+
 ![Project Overview](./images/kafka-spark-redis-streaming-etl.png)
 
 This project demonstrates a robust, scalable real-time IoT data processing pipeline. It simulates data from multiple environmental sensors, streams it through `Apache Kafka`, processes it using `Apache Spark` Structured Streaming, stores time-series data in `Redis`, and visualizes live insights via `Grafana` dashboards.
 
 The entire infrastructure is containerized using `Docker` and managed with convenient shell scripts.
+
+---
+
+## 📑 Table of Contents
+
+- [What This Demonstrates](#-what-this-demonstrates)
+- [Key Features](#-key-features)
+- [Data Engineering & Transformation (PySpark)](#-data-engineering--transformation-pyspark)
+- [Infrastructure Ecosystem (Docker Compose)](#-infrastructure-ecosystem-docker-compose)
+- [CLI Automation Wrapper (run.sh)](#-cli-automation-wrapper-runsh)
+- [Project Structure](#-project-structure)
+- [Quick Start Guide](#-quick-start-guide)
+- [Data Validation & Verification](#-data-validation--verification)
+- [Grafana Visualization Dashboards](#-grafana-visualization-dashboards)
+- [Project Shutdown](#-project-shutdown)
+- [License](#-license)
+
+> For a deeper engineering reference — service ports, end-to-end data flow, test coverage, and known failure modes — see [CLAUDE.md](./CLAUDE.md).
+
+---
+
+## 🎯 What This Demonstrates
+
+This is a portfolio project built to demonstrate end-to-end **real-time data engineering** skills across a modern streaming stack:
+
+- **Streaming architecture:** Designing a decoupled producer → broker → stream-processor → store → dashboard pipeline, where each stage scales independently.
+- **Stateful stream processing:** Using Spark Structured Streaming with micro-batches, checkpointing for fault tolerance, and a connection-per-partition sink pattern.
+- **Data quality engineering:** Schema enforcement, regex sanitisation of dirty fields, null handling, and range-based outlier filtering — validated by a unit-tested transformation function.
+- **Time-series storage modelling:** Labelled Redis TimeSeries keys with retention policies, queryable by metric or sensor.
+- **Production-minded tooling:** Containerised infrastructure, a one-command developer workflow, automated linting and tests in CI, and infrastructure-as-code Grafana provisioning.
 
 ---
 

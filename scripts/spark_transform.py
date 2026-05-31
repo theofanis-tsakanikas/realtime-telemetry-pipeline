@@ -1,7 +1,18 @@
+"""Spark Structured Streaming job for the IoT sensor pipeline.
+
+Reads raw sensor JSON from a Kafka topic, enforces a static schema, cleans and
+range-filters the readings via :func:`clean_data`, and writes the surviving
+metrics to Redis TimeSeries. The Redis sink runs through ``foreachBatch`` and
+opens one connection per Spark partition (a Spark best practice) before issuing
+native ``TS.CREATE`` / ``TS.ADD`` commands.
+
+Configuration is read from environment variables (with Docker-friendly
+defaults) at import time; see the constants below.
+"""
 import os
 import redis
 from datetime import datetime
-from pyspark.sql import SparkSession
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, from_json, when, to_timestamp
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType
 
@@ -24,8 +35,25 @@ schema = StructType([
 ])
 
 
-def clean_data(df):
-    """Clean and filter incoming sensor data."""
+def clean_data(df: DataFrame) -> DataFrame:
+    """Clean and filter incoming sensor data.
+
+    Applies the data-quality rules for the pipeline:
+
+    1. Casts ``humidity`` to a double only when it matches ``^[0-9.]+$``;
+       otherwise it becomes null (handles dirty values such as ``"N/A"``).
+    2. Parses the ISO-8601 ``timestamp`` string into a Spark timestamp.
+    3. Drops rows missing any critical column (sensor_id, temperature,
+       humidity, pressure, timestamp).
+    4. Filters readings to plausible ranges: temperature 10-45 C,
+       humidity 0-100 %, pressure 950-1050 hPa.
+
+    Args:
+        df: Parsed input DataFrame with the columns defined by ``schema``.
+
+    Returns:
+        A new DataFrame containing only the valid, in-range rows.
+    """
     # Convert humidity to double if it's a valid number string
     df = df.withColumn(
         "humidity",
@@ -47,10 +75,26 @@ def clean_data(df):
     return df
 
 
-def write_to_redis(batch_df, batch_id):
-    """Write each micro-batch to RedisTimeSeries."""
-    
-    def send_partition(partition):
+def write_to_redis(batch_df, batch_id: int) -> None:
+    """Write each micro-batch to Redis TimeSeries.
+
+    Used as the ``foreachBatch`` callback for the streaming query. Each
+    partition opens its own Redis connection, lazily creates a labelled
+    TimeSeries per ``sensor:{id}:{metric}`` key, and appends the reading.
+
+    Args:
+        batch_df: The micro-batch DataFrame for this trigger (type hint omitted
+            to avoid adding a Spark ``DataFrame`` import).
+        batch_id: The monotonically increasing micro-batch identifier.
+    """
+
+    def send_partition(partition) -> None:
+        """Write all rows in a single Spark partition to Redis.
+
+        Opens one Redis connection for the partition and, for every row,
+        ensures the TimeSeries keys exist before adding the sample. Per-row
+        errors are caught and logged so one bad row cannot fail the batch.
+        """
         # Establish connection per partition (best practice in Spark)
         r = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
 
@@ -93,8 +137,13 @@ def write_to_redis(batch_df, batch_id):
     print(f"✅ Batch {batch_id} processed at {datetime.now().isoformat()}")
 
 
-def main():
-    """Main Spark Streaming Entry Point."""
+def main() -> None:
+    """Main Spark Streaming entry point.
+
+    Builds the local SparkSession (with the Kafka connector package), reads the
+    sensor topic as a stream, parses and cleans the JSON payloads, and starts
+    the Redis sink query, blocking on ``awaitTermination``.
+    """
     spark = (
         SparkSession.builder
         .appName("SensorDataTransformer")
