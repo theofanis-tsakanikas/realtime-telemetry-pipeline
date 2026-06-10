@@ -1,6 +1,5 @@
 confluent-kafka==2.4.0
-pyspark==3.5.0
+pyspark==3.5.5
 redis==5.0.1
 faker==24.1.0
-loguru==0.7.2
 python-dotenv==1.0.1

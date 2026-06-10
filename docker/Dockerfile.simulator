@@ -11,6 +11,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY scripts/sensor_simulator.py ./scripts/
-COPY .env .
+
+# Configuration is injected via docker-compose `environment:` — the .env file
+# is never baked into the image.
 
 CMD ["python", "scripts/sensor_simulator.py"]

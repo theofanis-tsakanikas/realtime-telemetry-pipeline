@@ -10,20 +10,25 @@ Configuration is read from environment variables (loaded from ``.env``) with
 sensible defaults; see the constants below. Handles SIGINT/SIGTERM for a
 graceful, buffer-flushing shutdown.
 """
-import os
 import json
-import time
+import logging
+import os
 import random
 import signal
 import sys
-from dotenv import load_dotenv
+import time
 from datetime import datetime, timezone
-from faker import Faker
+
 from confluent_kafka import Producer
 from confluent_kafka.admin import AdminClient, NewTopic
+from dotenv import load_dotenv
 
-# Initialize Faker for any potential fake data generation
-fake = Faker()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger(__name__)
 
 # ============================================================
 # 🔧 Configuration Section
@@ -49,43 +54,56 @@ def create_kafka_topic() -> None:
     try:
         admin_client = AdminClient({"bootstrap.servers": KAFKA_BROKER})
         topic = NewTopic(KAFKA_TOPIC, num_partitions=1, replication_factor=1)
-        
+
         # Call create_topics, which returns a dictionary of futures
         fs = admin_client.create_topics([topic])
-        
+
         for topic_name, f in fs.items():
             try:
                 f.result()  # Wait for the operation to finish
-                print(f"✅ Topic '{KAFKA_TOPIC}' created successfully.")
+                logger.info("Topic '%s' created successfully.", KAFKA_TOPIC)
             except Exception as e:
                 # Handle the case where the topic already exists
                 if "exists" in str(e).lower():
-                    print(f"ℹ️ Topic '{KAFKA_TOPIC}' already exists.")
+                    logger.info("Topic '%s' already exists.", KAFKA_TOPIC)
                 else:
-                    print(f"⚠️ Could not create topic: {e}")
+                    logger.warning("Could not create topic: %s", e)
     except Exception as e:
-        print(f"⚠️ Admin client error: {e}")
+        logger.warning("Admin client error: %s", e)
 
 
 def connect_producer_with_retry() -> Producer:
     """
-    Attempts to initialize the Confluent Kafka Producer.
-    Retries connection multiple times in case the broker is temporarily unavailable.
+    Initializes the Confluent Kafka Producer and verifies broker connectivity.
+
+    The Producer constructor never contacts the broker (librdkafka connects
+    lazily), so a metadata request (``list_topics``) is used as the actual
+    connectivity probe — retried while the broker finishes leader election.
     """
+    producer = Producer({
+        'bootstrap.servers': KAFKA_BROKER,
+        'client.id': 'sensor_simulator_producer'
+    })
+
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            # Confluent Kafka uses a dictionary for configuration
-            producer = Producer({
-                'bootstrap.servers': KAFKA_BROKER,
-                'client.id': 'sensor_simulator_producer'
-            })
-            print(f"✅ Connected to Kafka broker on attempt {attempt}.")
+            producer.list_topics(timeout=5)
+            logger.info("Connected to Kafka broker on attempt %d.", attempt)
             return producer
         except Exception as e:
-            print(f"⚠️ Kafka broker not available (attempt {attempt}/{MAX_RETRIES}). Retrying in {RETRY_DELAY}s... Error: {e}")
+            logger.warning(
+                "Kafka broker not available (attempt %d/%d). Retrying in %ds... Error: %s",
+                attempt, MAX_RETRIES, RETRY_DELAY, e,
+            )
             time.sleep(RETRY_DELAY)
-            
-    raise ConnectionError(f"❌ Failed to connect to Kafka after {MAX_RETRIES} attempts.")
+
+    raise ConnectionError(f"Failed to connect to Kafka after {MAX_RETRIES} attempts.")
+
+
+def delivery_report(err, msg) -> None:
+    """Per-message delivery callback: log failures instead of dropping them silently."""
+    if err is not None:
+        logger.error("Delivery failed for key=%s: %s", msg.key(), err)
 
 
 # ============================================================
@@ -130,14 +148,14 @@ def main() -> None:
     create_kafka_topic()
     producer = connect_producer_with_retry()
 
-    print(f"🚀 Starting sensor simulator... Producing to topic '{KAFKA_TOPIC}'")
+    logger.info("Starting sensor simulator... Producing to topic '%s'", KAFKA_TOPIC)
 
     def handle_exit(*_) -> None:
         """
         Gracefully handles SIGTERM and SIGINT for clean shutdowns.
         Flushes pending messages in buffer and closes the producer.
         """
-        print("\n🛑 Stopping simulator gracefully...")
+        logger.info("Stopping simulator gracefully...")
         producer.flush()  # Push any buffered messages to Kafka before exiting
         sys.exit(0)
 
@@ -149,22 +167,22 @@ def main() -> None:
         while True:
             sensor_id = random.randint(1, SENSOR_COUNT)
             data = generate_sensor_data(sensor_id)
-            
-            # Confluent Kafka uses 'produce' method instead of 'send'
+
             producer.produce(
-                KAFKA_TOPIC, 
-                key=f"sensor_{sensor_id}", 
-                value=json.dumps(data).encode("utf-8")
+                KAFKA_TOPIC,
+                key=f"sensor_{sensor_id}",
+                value=json.dumps(data).encode("utf-8"),
+                callback=delivery_report,
             )
-            
-            # Immediately trigger the delivery of the message
-            producer.poll(0) 
-            
-            print(f"[{datetime.now(timezone.utc).isoformat()}] Produced: {data}")
+
+            # Serve delivery callbacks for previously produced messages
+            producer.poll(0)
+
+            logger.info("Produced: %s", data)
             time.sleep(DELAY_SECONDS)
-            
-    except Exception as e:
-        print(f"❌ Error in simulator loop: {e}")
+
+    except Exception:
+        logger.exception("Error in simulator loop")
     finally:
         handle_exit()
 

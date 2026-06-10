@@ -69,7 +69,8 @@ The core of the project is the Apache Spark Structured Streaming job (`scripts/s
   * Temperature: 10°C to 45°C
   * Humidity: 0% to 100%
   * Pressure: 950hPa to 1050hPa
-* **Native RedisTimeSeries Sink (High Performance):** Uses Spark’s `.foreachPartition()` to open one connection per partition (Spark Best Practice) and pushes metrics via native `TS.ADD` commands, bypassing expensive ORMs.
+* **Native RedisTimeSeries Sink (High Performance):** Uses Spark’s `.foreachPartition()` to open one pipelined connection per partition (Spark Best Practice) and pushes metrics via native `TS.ADD` commands, bypassing expensive ORMs.
+* **Dead-Letter Queue (Observability):** Rows that fail validation are not silently dropped — they are routed to a `sensor_data_rejected` Kafka topic tagged with a `rejection_reason` (e.g. `invalid_humidity`, `pressure_out_of_range`), so data-quality issues are inspectable in Kafka-UI.
 
 ---
 
@@ -77,7 +78,7 @@ The core of the project is the Apache Spark Structured Streaming job (`scripts/s
 
 The environment spin-ups a fully integrated telemetry-processing stack. All services live in a dedicated Docker bridge network (`stream-net`):
 
-* **Event Bus:** Kafka & Zookeeper (Confluent OSS image).
+* **Event Bus:** Apache Kafka in single-node KRaft mode (Confluent OSS image) — no Zookeeper.
 * **Storage:** Redis Stack (includes native support for time-series and RedisInsight).
 * **Processors:** Custom Docker images (multi-stage builds) for the Python Sensor Simulator and PySpark Workers.
 * **Monitoring:** Grafana UI, Kafka-UI (Provectus), and RedisInsight for live visual debugging of message offsets, topic traffic, and RedisTimeSeries keys.
