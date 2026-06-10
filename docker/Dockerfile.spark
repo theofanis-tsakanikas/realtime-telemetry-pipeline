@@ -1,4 +1,4 @@
-FROM public.ecr.aws/bitnami/spark:3.5
+FROM public.ecr.aws/bitnami/spark:3.5.5
 
 WORKDIR /app
 
@@ -9,7 +9,9 @@ COPY requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY scripts/spark_transform.py ./scripts/
-COPY .env .
+
+# Configuration is injected via docker-compose `environment:` — the .env file
+# is never baked into the image.
 
 # Spark-submit command with the Kafka package
-CMD ["spark-submit", "--packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1", "scripts/spark_transform.py"]
+CMD ["spark-submit", "--packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.5", "scripts/spark_transform.py"]

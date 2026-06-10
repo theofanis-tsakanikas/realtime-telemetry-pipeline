@@ -15,16 +15,16 @@ kafka-spark-redis-streaming-etl/
 │   ├── Dockerfile.simulator    # Python 3.12-slim image for the sensor producer
 │   └── Dockerfile.spark        # Bitnami Spark 3.5 image for the PySpark job
 ├── infra/
-│   ├── docker-compose.yml      # Orchestrates all 8 services
+│   ├── docker-compose.yml      # Orchestrates all 7 services (Kafka runs in KRaft mode)
 │   └── grafana/
 │       ├── provisioning/
 │       │   ├── datasources/redis.yml    # Auto-provisions Redis datasource on startup
 │       │   └── dashboards/provider.yml  # Tells Grafana where to find dashboard JSON
 │       └── dashboards/
-│           └── iot-sensors.json         # Dashboard JSON — replace placeholder with real export
+│           └── iot-sensors.json         # Provisioned dashboard (5 panels: MRANGE/GET/RANGE)
 ├── scripts/
 │   ├── sensor_simulator.py     # Confluent Kafka producer; emits ~20% anomalous sensor data
-│   └── spark_transform.py      # PySpark streaming job; cleans data and sinks to Redis TimeSeries
+│   └── spark_transform.py      # PySpark streaming job; valid rows → Redis TimeSeries, rejected rows → DLQ topic
 ├── tests/
 │   ├── conftest.py             # Session-scoped SparkSession fixture
 │   └── test_spark_transform.py # 10 unit tests covering clean_data()
@@ -56,7 +56,7 @@ kafka-spark-redis-streaming-etl/
 
 ## Prerequisites
 
-- **Docker Desktop** with **≥ 8 GB RAM** allocated to Docker. Kafka + Zookeeper + Spark together are memory-hungry. 6 GB is the absolute minimum; 8 GB is recommended for stable operation.
+- **Docker Desktop** with **≥ 8 GB RAM** allocated to Docker. Kafka (KRaft) + Spark together are memory-hungry. 6 GB is the absolute minimum; 8 GB is recommended for stable operation.
 - **Docker Compose V2** — the `run.sh` and Makefile use `docker compose` (no hyphen). Verify with `docker compose version`.
 - **Python 3.12** — for local test execution. Only needed for `make test` and `make lint`; not required if you only run the Docker stack.
 - **Java 17** — required locally for `make test`. Install via `brew install openjdk@17`. The Makefile sets `JAVA_HOME=/opt/homebrew/opt/openjdk@17` automatically so no manual export is needed after installation. Add the following to `~/.zshrc` for `java` to work in your terminal outside of make:
@@ -90,9 +90,8 @@ make logs           # or: ./run.sh logs    (Ctrl+C to detach without stopping co
 make stop           # or: ./run.sh down
 ```
 
-> **Important — `.env` must exist before building:** `Dockerfile.simulator` and `Dockerfile.spark`
-> both `COPY .env .` during the Docker build. `./setup.sh` creates `.env` from `.env.example`
-> automatically. If you skip `setup.sh`, run `cp .env.example .env` manually before `make build`.
+> **Note:** Configuration is injected at runtime via docker-compose `environment:` blocks —
+> the `.env` file is only used when running the Python scripts locally on the host.
 
 ---
 
@@ -134,11 +133,15 @@ spark_transform.py — clean_data()
   │                             humidity, pressure, timestamp
   │  5. Range filter          — temperature: 10–45°C  |  humidity: 0–100%  |  pressure: 950–1050 hPa
   ▼
+spark_transform.py — rejected_data()  [parallel DLQ branch]
+  │  Complement of clean_data(); adds rejection_reason (first violated rule)
+  │  → Kafka topic sensor_data_rejected (inspect in Kafka-UI)
+  │
 spark_transform.py — write_to_redis()  [via foreachBatch + foreachPartition]
-  │  One Redis connection per Spark partition (connection-per-partition best practice)
-  │  TS.CREATE sensor:{id}:{metric}  RETENTION 604800000  LABELS sensor_id {id} metric {name}
-  │  TS.ADD    sensor:{id}:{metric}  {timestamp_ms}  {value}
-  │  Keys: sensor:sensor_1:temperature, sensor:sensor_1:humidity, sensor:sensor_1:pressure, …
+  │  One pipelined Redis connection per Spark partition (flushed every 500 commands)
+  │  TS.ADD sensor:{id}:{metric} {timestamp_ms} {value}
+  │         RETENTION 604800000 ON_DUPLICATE LAST LABELS sensor_id {id} metric {name}
+  │  (TS.ADD auto-creates the series on first write; ON_DUPLICATE LAST = idempotent replays)
   ▼
 Redis TimeSeries (redis-stack)
   │  15 keys total (5 sensors × 3 metrics)
@@ -188,24 +191,22 @@ initialized once per session (session-scoped fixture) for performance.
 
 ## Grafana Dashboard Setup
 
-The Redis datasource and dashboard provider are **automatically provisioned** on `docker compose up`
-via the files in `infra/grafana/provisioning/`. The dashboard JSON at
-`infra/grafana/dashboards/iot-sensors.json` is currently a **placeholder with no panels**.
+The Redis datasource (uid `redis-iot`) and the dashboard are **automatically provisioned** on
+`docker compose up` via the files in `infra/grafana/provisioning/` and
+`infra/grafana/dashboards/iot-sensors.json`. The committed dashboard has 5 panels:
 
-**To commit the real dashboard:**
-
-1. Start the stack: `make start`
-2. Wait ~60 seconds for Grafana to install the `redis-datasource` plugin on first boot
-3. Open Grafana at http://localhost:3000 (admin / admin)
-4. Build your dashboard panels using the pre-configured Redis datasource
-5. Open **Dashboard Settings** (gear icon, top-right) → **JSON Model**
-6. Click **Copy to clipboard**
-7. Paste the JSON into `infra/grafana/dashboards/iot-sensors.json`, replacing the placeholder entirely
-8. Commit: `git add infra/grafana/dashboards/iot-sensors.json && git commit -m "feat: add Grafana dashboard JSON"`
+| Panel | Type | Query |
+|---|---|---|
+| All Sensors — Temperature | timeseries | `TS.MRANGE` filter `metric=temperature`, legend by `sensor_id` |
+| Sensor 1 — Current Temperature | gauge | `TS.GET sensor:sensor_1:temperature` |
+| Sensor 1 — Current Humidity | stat | `TS.GET sensor:sensor_1:humidity` |
+| Sensor 1 — Pressure Trend | timeseries | `TS.RANGE sensor:sensor_1:pressure` |
+| All Sensors — Humidity | timeseries | `TS.MRANGE` filter `metric=humidity`, legend by `sensor_id` |
 
 Grafana polls the dashboard directory every 30 seconds (`updateIntervalSeconds: 30` in
-`provider.yml`), so you can also paste and save the file while the stack is running and the
-dashboard will reload automatically — no container restart needed.
+`provider.yml`), so edits to the JSON file reload automatically while the stack is running —
+no container restart needed. To change panels in the UI and persist them, export via
+**Dashboard Settings → JSON Model** and overwrite the file.
 
 > **Note on first boot:** `GF_INSTALL_PLUGINS=redis-datasource` causes Grafana to download the
 > plugin from the Grafana plugin registry on startup. This adds ~30–60 seconds to the first
@@ -247,6 +248,7 @@ Refresh the page after waiting.
 If any port is already in use (3000, 4040, 5540, 6379, 8001, 8085, 9092, 29092), edit the
 left-hand port number in `infra/docker-compose.yml` and update this file accordingly.
 
-### `make build` fails with "COPY failed: .env: not found"
-The Dockerfiles bake the `.env` file into the image at build time. Run `cp .env.example .env`
-first (or `./setup.sh` to do the full local setup).
+### DLQ topic is empty
+The `sensor_data_rejected` topic only receives rows after the simulator has emitted anomalies
+(~20% of messages). Check Kafka-UI (http://localhost:8085) → Topics → `sensor_data_rejected`
+and inspect the `rejection_reason` field of each message.

@@ -2,6 +2,9 @@ apiVersion: 1
 
 datasources:
   - name: Redis
+    # Stable uid so the provisioned dashboard JSON can reference this
+    # datasource deterministically.
+    uid: redis-iot
     type: redis-datasource
     access: proxy
     url: redis://redis:6379
