@@ -1,0 +1,14 @@
+# Streamlit theme for the Real-Time Sensor Wall.
+#
+# Matches the dark cyan branding of the multi-cloud-self-healing-agent and the
+# fleet command center so the portfolio reads as one coherent product suite.
+
+[theme]
+base                     = "dark"
+primaryColor             = "#38bdf8"
+backgroundColor          = "#070e20"
+secondaryBackgroundColor = "#0d1b35"
+textColor                = "#e2e8f0"
+
+[client]
+toolbarMode = "viewer"
