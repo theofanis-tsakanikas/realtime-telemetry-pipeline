@@ -1,0 +1,9 @@
+# Real-Time Sensor Wall — Streamlit dashboard dependencies.
+# Light and self-contained: demo mode needs no Kafka/Spark/Redis.
+
+streamlit>=1.40
+pandas>=2.0
+plotly>=5.20
+
+# Optional — only needed for "Redis (live)" mode:
+redis>=5.0
