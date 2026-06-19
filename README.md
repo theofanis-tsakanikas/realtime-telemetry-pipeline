@@ -41,7 +41,8 @@ This is a portfolio project built to demonstrate end-to-end **real-time data eng
 
 - **Streaming architecture:** Designing a decoupled producer → broker → stream-processor → store → dashboard pipeline, where each stage scales independently.
 - **Stateful stream processing:** Using Spark Structured Streaming with micro-batches, checkpointing for fault tolerance, and a connection-per-partition sink pattern.
-- **Data quality engineering:** Schema enforcement, regex sanitisation of dirty fields, null handling, and range-based outlier filtering — validated by a unit-tested transformation function.
+- **Data quality engineering:** A declared sensor data contract (`metrics_spec.py`) is the single source of truth for validation; bad readings are quarantined to a dead-letter topic with a reason, and per-batch quality metrics (accept rate, rejections by reason) are published live to the dashboard — you can *see* the data quality, not just trust it.
+- **Statistical drift detection:** Beyond the range filter, each micro-batch's per-metric mean is compared to its commissioning baseline with a z-test (`drift.py`). This catches a miscalibrated sensor reading 5 °C high **even though every reading is still inside the valid range** — silent data drift the threshold filter can't see — and raises a 3σ alert on the Grafana dashboard.
 - **Time-series storage modelling:** Labelled Redis TimeSeries keys with retention policies, queryable by metric or sensor.
 - **Production-minded tooling:** Containerised infrastructure, a one-command developer workflow, automated linting and tests in CI, and infrastructure-as-code Grafana provisioning.
 
@@ -71,6 +72,7 @@ The core of the project is the Apache Spark Structured Streaming job (`scripts/s
   * Pressure: 950hPa to 1050hPa
 * **Native RedisTimeSeries Sink (High Performance):** Uses Spark’s `.foreachPartition()` to open one pipelined connection per partition (Spark Best Practice) and pushes metrics via native `TS.ADD` commands, bypassing expensive ORMs.
 * **Dead-Letter Queue (Observability):** Rows that fail validation are not silently dropped — they are routed to a `sensor_data_rejected` Kafka topic tagged with a `rejection_reason` (e.g. `invalid_humidity`, `pressure_out_of_range`), so data-quality issues are inspectable in Kafka-UI.
+* **Live Data-Quality & Drift Observability:** A third streaming sink publishes per-batch quality metrics (accept rate, rejections by reason) and per-metric statistical drift (z-score vs the commissioning baseline) to Redis TimeSeries, surfaced on a dedicated Grafana **Data Quality & Drift** dashboard row with a 3σ drift alert band.
 
 ---
 

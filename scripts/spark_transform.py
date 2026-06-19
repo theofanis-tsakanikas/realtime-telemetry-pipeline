@@ -18,11 +18,16 @@ import logging
 import os
 import sys
 from datetime import datetime
+from functools import reduce
 
 import redis
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col, from_json, lit, struct, to_json, to_timestamp, when
+from pyspark.sql.functions import avg, col, count, from_json, lit, struct, to_json, to_timestamp, when
 from pyspark.sql.types import DoubleType, StringType, StructField, StructType
+
+from data_quality import quality_metrics, write_dq_metrics
+from drift import batch_drift, write_drift_metrics
+from metrics_spec import METRICS
 
 logging.basicConfig(
     level=logging.INFO,
@@ -138,12 +143,12 @@ def clean_data(df: DataFrame) -> DataFrame:
     # Drop nulls for critical columns
     df = df.na.drop(subset=["sensor_id", "temperature", "humidity", "pressure", "timestamp"])
 
-    # Range validation
-    df = df.filter(
-        (col("temperature").between(10, 45)) &
-        (col("humidity").between(0, 100)) &
-        (col("pressure").between(950, 1050))
+    # Range validation — bounds come from the metrics contract (metrics_spec.py).
+    range_filter = reduce(
+        lambda a, b: a & b,
+        (col(m.name).between(m.valid_min, m.valid_max) for m in METRICS),
     )
+    df = df.filter(range_filter)
 
     return df
 
@@ -169,10 +174,12 @@ def rejected_data(df: DataFrame) -> DataFrame:
         .when(col("humidity").isNull(), lit("invalid_humidity"))
         .when(col("pressure").isNull(), lit("missing_pressure"))
         .when(col("timestamp").isNull(), lit("missing_timestamp"))
-        .when(~col("temperature").between(10, 45), lit("temperature_out_of_range"))
-        .when(~col("humidity").between(0, 100), lit("humidity_out_of_range"))
-        .when(~col("pressure").between(950, 1050), lit("pressure_out_of_range"))
     )
+    # Out-of-range reasons come from the metrics contract, in declared order.
+    for m in METRICS:
+        reason = reason.when(
+            ~col(m.name).between(m.valid_min, m.valid_max), lit(m.rejection_reason)
+        )
 
     return df.withColumn("rejection_reason", reason).filter(col("rejection_reason").isNotNull())
 
@@ -218,6 +225,48 @@ def write_to_redis(batch_df, batch_id: int) -> None:
 
     batch_df.foreachPartition(send_partition)
     logger.info("Batch %s processed at %s", batch_id, datetime.now().isoformat())
+
+
+def _clean_batch_summaries(clean_batch: DataFrame) -> dict:
+    """Per-metric ``(n, mean)`` over the valid rows of a batch, for drift scoring."""
+    aggs = []
+    for m in METRICS:
+        aggs.append(count(col(m.name)).alias(f"{m.name}__n"))
+        aggs.append(avg(col(m.name)).alias(f"{m.name}__mean"))
+    row = clean_batch.agg(*aggs).collect()[0]
+    summaries = {}
+    for m in METRICS:
+        n = row[f"{m.name}__n"]
+        mean = row[f"{m.name}__mean"]
+        if n and mean is not None:
+            summaries[m.name] = (int(n), float(mean))
+    return summaries
+
+
+def write_observability(batch_df, batch_id: int) -> None:
+    """Compute and publish per-batch data-quality + drift metrics to Redis TimeSeries.
+
+    A third ``foreachBatch`` sink on the parsed stream. It never raises into the query:
+    observability must not be able to take down ingestion, so all errors are logged.
+    """
+    try:
+        timestamp_ms = int(datetime.now().timestamp() * 1000)
+        metrics = quality_metrics(batch_df, rejected_data)
+        drift = batch_drift(_clean_batch_summaries(clean_data(batch_df)))
+
+        r = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
+        pipe = r.pipeline(transaction=False)
+        write_dq_metrics(pipe, metrics, timestamp_ms)
+        write_drift_metrics(pipe, drift, timestamp_ms)
+        pipe.execute()
+
+        alerts = [d.metric for d in drift if d.alert]
+        logger.info(
+            "Batch %s observability: accept_rate=%.3f rejected=%d drift_alerts=%s",
+            batch_id, metrics.accept_rate, metrics.rejected_total, alerts or "none",
+        )
+    except Exception:
+        logger.exception("Observability sink failed for batch %s (ingestion unaffected)", batch_id)
 
 
 def main() -> None:
@@ -277,12 +326,22 @@ def main() -> None:
         .start()
     )
 
+    # 3c. Observability branch → per-batch data-quality + drift metrics to Redis TS
+    obs_query = (
+        parsed_df.writeStream
+        .foreachBatch(write_observability)
+        .option("checkpointLocation", CHECKPOINT_DIR + "_obs")
+        .outputMode("update")
+        .start()
+    )
+
     logger.info(
-        "Streaming queries started: valid → Redis, rejected → Kafka topic '%s'", DLQ_TOPIC
+        "Streaming queries started: valid → Redis, rejected → Kafka topic '%s', observability → Redis",
+        DLQ_TOPIC,
     )
     spark.streams.awaitAnyTermination()
     # Surface which query died so the container log explains the exit.
-    for q in (redis_query, dlq_query):
+    for q in (redis_query, dlq_query, obs_query):
         if q.exception() is not None:
             raise q.exception()
 

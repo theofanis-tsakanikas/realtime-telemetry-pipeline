@@ -1,5 +1,7 @@
 {
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": []
+  },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -7,16 +9,21 @@
   "links": [],
   "panels": [
     {
-      "datasource": { "type": "redis-datasource", "uid": "redis-iot" },
+      "datasource": {
+        "type": "redis-datasource",
+        "uid": "redis-iot"
+      },
       "description": "Live temperature for every sensor in the network (TS.MRANGE filtered on the metric label).",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "°C",
+            "axisLabel": "\u00b0C",
             "axisPlacement": "auto",
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -31,16 +38,35 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "id": 1,
       "options": {
-        "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "right", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
           "command": "ts.mrange",
-          "datasource": { "type": "redis-datasource", "uid": "redis-iot" },
+          "datasource": {
+            "type": "redis-datasource",
+            "uid": "redis-iot"
+          },
           "filter": "metric=temperature",
           "legend": "sensor_id",
           "query": "",
@@ -48,37 +74,65 @@
           "type": "timeSeries"
         }
       ],
-      "title": "All Sensors — Temperature",
+      "title": "All Sensors \u2014 Temperature",
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "redis-datasource", "uid": "redis-iot" },
+      "datasource": {
+        "type": "redis-datasource",
+        "uid": "redis-iot"
+      },
       "description": "Latest temperature reading for sensor_1 (TS.GET).",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "max": 45,
           "min": 10,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "blue", "value": null },
-              { "color": "green", "value": 18 },
-              { "color": "orange", "value": 30 },
-              { "color": "red", "value": 38 }
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 18
+              },
+              {
+                "color": "orange",
+                "value": 30
+              },
+              {
+                "color": "red",
+                "value": 38
+              }
             ]
           },
           "unit": "celsius"
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 10 },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 10
+      },
       "id": 2,
       "options": {
         "minVizHeight": 75,
         "minVizWidth": 75,
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "showThresholdLabels": false,
         "showThresholdMarkers": true,
         "sizing": "auto"
@@ -86,42 +140,70 @@
       "targets": [
         {
           "command": "ts.get",
-          "datasource": { "type": "redis-datasource", "uid": "redis-iot" },
+          "datasource": {
+            "type": "redis-datasource",
+            "uid": "redis-iot"
+          },
           "keyName": "sensor:sensor_1:temperature",
           "query": "",
           "refId": "A",
           "type": "timeSeries"
         }
       ],
-      "title": "Sensor 1 — Current Temperature",
+      "title": "Sensor 1 \u2014 Current Temperature",
       "type": "gauge"
     },
     {
-      "datasource": { "type": "redis-datasource", "uid": "redis-iot" },
+      "datasource": {
+        "type": "redis-datasource",
+        "uid": "redis-iot"
+      },
       "description": "Latest humidity reading for sensor_1 (TS.GET).",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "orange", "value": null },
-              { "color": "green", "value": 30 },
-              { "color": "blue", "value": 70 }
+              {
+                "color": "orange",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 30
+              },
+              {
+                "color": "blue",
+                "value": 70
+              }
             ]
           },
           "unit": "humidity"
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 10 },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 10
+      },
       "id": 3,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "showPercentChange": false,
         "textMode": "auto",
         "wideLayout": true
@@ -129,22 +211,31 @@
       "targets": [
         {
           "command": "ts.get",
-          "datasource": { "type": "redis-datasource", "uid": "redis-iot" },
+          "datasource": {
+            "type": "redis-datasource",
+            "uid": "redis-iot"
+          },
           "keyName": "sensor:sensor_1:humidity",
           "query": "",
           "refId": "A",
           "type": "timeSeries"
         }
       ],
-      "title": "Sensor 1 — Current Humidity",
+      "title": "Sensor 1 \u2014 Current Humidity",
       "type": "stat"
     },
     {
-      "datasource": { "type": "redis-datasource", "uid": "redis-iot" },
+      "datasource": {
+        "type": "redis-datasource",
+        "uid": "redis-iot"
+      },
       "description": "Atmospheric pressure trend for sensor_1 (TS.RANGE).",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "fixed", "fixedColor": "purple" },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -164,16 +255,32 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
       "id": 4,
       "options": {
-        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false },
-        "tooltip": { "mode": "single", "sort": "none" }
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "targets": [
         {
           "command": "ts.range",
-          "datasource": { "type": "redis-datasource", "uid": "redis-iot" },
+          "datasource": {
+            "type": "redis-datasource",
+            "uid": "redis-iot"
+          },
           "keyName": "sensor:sensor_1:pressure",
           "legend": "pressure",
           "query": "",
@@ -181,15 +288,20 @@
           "type": "timeSeries"
         }
       ],
-      "title": "Sensor 1 — Pressure Trend",
+      "title": "Sensor 1 \u2014 Pressure Trend",
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "redis-datasource", "uid": "redis-iot" },
+      "datasource": {
+        "type": "redis-datasource",
+        "uid": "redis-iot"
+      },
       "description": "Live humidity for every sensor (TS.MRANGE filtered on the metric label).",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -209,16 +321,35 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 18 },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
       "id": 5,
       "options": {
-        "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "right", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
           "command": "ts.mrange",
-          "datasource": { "type": "redis-datasource", "uid": "redis-iot" },
+          "datasource": {
+            "type": "redis-datasource",
+            "uid": "redis-iot"
+          },
           "filter": "metric=humidity",
           "legend": "sensor_id",
           "query": "",
@@ -226,15 +357,234 @@
           "type": "timeSeries"
         }
       ],
-      "title": "All Sensors — Humidity",
+      "title": "All Sensors \u2014 Humidity",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "redis-datasource",
+        "uid": "redis-iot"
+      },
+      "description": "Share of incoming readings that passed the data contract this batch (live).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "min": 0,
+          "max": 1,
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.8
+              },
+              {
+                "color": "green",
+                "value": 0.95
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 27
+      },
+      "id": 6,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "redis-datasource",
+            "uid": "redis-iot"
+          },
+          "command": "ts.get",
+          "keyName": "dq:accept_rate",
+          "query": "",
+          "refId": "A",
+          "type": "timeSeries"
+        }
+      ],
+      "title": "Data Quality \u2014 Accept Rate",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "redis-datasource",
+        "uid": "redis-iot"
+      },
+      "description": "Per-batch rejected readings, broken down by the contract rule they violated.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "rejected",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 18,
+        "x": 6,
+        "y": 27
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "redis-datasource",
+            "uid": "redis-iot"
+          },
+          "command": "ts.mrange",
+          "query": "",
+          "refId": "A",
+          "type": "timeSeries",
+          "filter": "series=rejection",
+          "legend": "metric"
+        }
+      ],
+      "title": "Rejections by Reason",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "redis-datasource",
+        "uid": "redis-iot"
+      },
+      "description": "Standardised mean shift of each metric vs its commissioning baseline. |z| > 3 (dashed band) = drift even though every reading is still inside the valid range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "z-score",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 3
+              },
+              {
+                "color": "red",
+                "value": 6
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "redis-datasource",
+            "uid": "redis-iot"
+          },
+          "command": "ts.mrange",
+          "query": "",
+          "refId": "A",
+          "type": "timeSeries",
+          "filter": "kind=drift series=z",
+          "legend": "metric"
+        }
+      ],
+      "title": "Drift \u2014 Z-Score per Metric",
       "type": "timeseries"
     }
   ],
   "refresh": "5s",
   "schemaVersion": 39,
-  "tags": ["iot", "sensors"],
-  "templating": { "list": [] },
-  "time": { "from": "now-5m", "to": "now" },
+  "tags": [
+    "iot",
+    "sensors"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-5m",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "browser",
   "title": "IoT Sensors",
