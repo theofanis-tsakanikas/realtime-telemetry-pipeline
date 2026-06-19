@@ -21,13 +21,18 @@ kafka-spark-redis-streaming-etl/
 │       │   ├── datasources/redis.yml    # Auto-provisions Redis datasource on startup
 │       │   └── dashboards/provider.yml  # Tells Grafana where to find dashboard JSON
 │       └── dashboards/
-│           └── iot-sensors.json         # Provisioned dashboard (5 panels: MRANGE/GET/RANGE)
+│           └── iot-sensors.json         # Provisioned dashboard (8 panels incl. Data Quality & Drift)
 ├── scripts/
 │   ├── sensor_simulator.py     # Confluent Kafka producer; emits ~20% anomalous sensor data
-│   └── spark_transform.py      # PySpark streaming job; valid rows → Redis TimeSeries, rejected rows → DLQ topic
+│   ├── metrics_spec.py         # Sensor data contract: valid ranges + normal-operation baselines (single source of truth)
+│   ├── data_quality.py         # Per-batch data-quality metrics (accept rate, rejections by reason) → Redis TS
+│   ├── drift.py                # Statistical drift detection (z-test of batch mean vs baseline) → Redis TS
+│   └── spark_transform.py      # PySpark job; valid → Redis, rejected → DLQ topic, DQ+drift → Redis observability
 ├── tests/
 │   ├── conftest.py             # Session-scoped SparkSession fixture
-│   └── test_spark_transform.py # 10 unit tests covering clean_data()
+│   ├── test_spark_transform.py # clean_data() unit tests
+│   ├── test_data_quality.py    # data-quality metrics
+│   └── test_drift.py           # drift detector
 ├── .env.example                # Template — copy to .env before building Docker images
 ├── Makefile                    # Task runner (wraps run.sh; adds test, lint, clean)
 ├── pytest.ini                  # Pytest path and testpaths config
@@ -137,6 +142,13 @@ spark_transform.py — rejected_data()  [parallel DLQ branch]
   │  Complement of clean_data(); adds rejection_reason (first violated rule)
   │  → Kafka topic sensor_data_rejected (inspect in Kafka-UI)
   │
+spark_transform.py — write_observability()  [3rd foreachBatch on the parsed stream]
+  │  data_quality.py: per-batch total / valid / accept_rate / rejected-by-reason → dq:* TS keys
+  │  drift.py: per-metric z-test of the batch mean vs the metrics_spec baseline
+  │            (catches a miscalibrated sensor whose readings are still individually valid)
+  │            → drift:{metric}:z / :mean TS keys; >3σ raises a drift alert
+  │  Errors are logged, never raised — observability can't take down ingestion
+  │
 spark_transform.py — write_to_redis()  [via foreachBatch + foreachPartition]
   │  One pipelined Redis connection per Spark partition (flushed every 500 commands)
   │  TS.ADD sensor:{id}:{metric} {timestamp_ms} {value}
@@ -193,7 +205,9 @@ initialized once per session (session-scoped fixture) for performance.
 
 The Redis datasource (uid `redis-iot`) and the dashboard are **automatically provisioned** on
 `docker compose up` via the files in `infra/grafana/provisioning/` and
-`infra/grafana/dashboards/iot-sensors.json`. The committed dashboard has 5 panels:
+`infra/grafana/dashboards/iot-sensors.json`. The committed dashboard has 8 panels — the
+sensor readings plus a **Data Quality & Drift** row backed by the observability metrics the
+Spark job publishes to Redis each batch:
 
 | Panel | Type | Query |
 |---|---|---|
@@ -202,6 +216,9 @@ The Redis datasource (uid `redis-iot`) and the dashboard are **automatically pro
 | Sensor 1 — Current Humidity | stat | `TS.GET sensor:sensor_1:humidity` |
 | Sensor 1 — Pressure Trend | timeseries | `TS.RANGE sensor:sensor_1:pressure` |
 | All Sensors — Humidity | timeseries | `TS.MRANGE` filter `metric=humidity`, legend by `sensor_id` |
+| Data Quality — Accept Rate | gauge | `TS.GET dq:accept_rate` |
+| Rejections by Reason | timeseries | `TS.MRANGE` filter `series=rejection`, legend by `metric` |
+| Drift — Z-Score per Metric | timeseries | `TS.MRANGE` filter `kind=drift series=z`, 3σ threshold band |
 
 Grafana polls the dashboard directory every 30 seconds (`updateIntervalSeconds: 30` in
 `provider.yml`), so edits to the JSON file reload automatically while the stack is running —
