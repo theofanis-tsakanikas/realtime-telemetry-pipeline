@@ -111,10 +111,14 @@ kafka-spark-redis-streaming-etl/
 │   └── Dockerfile.spark     # Image for Apache Spark Processing
 ├── images/                  # Directory for project screenshots
 ├── infra/                   # Infrastructure configuration
-│   └── docker-compose.yml   # Main Docker Compose orchestration file
+│   ├── docker-compose.yml   # Main Docker Compose orchestration file (Kafka in KRaft mode)
+│   └── grafana/             # Provisioned datasource + the Data Quality & Drift dashboard JSON
 ├── scripts/                 # Source code scripts
 │   ├── sensor_simulator.py  # Python producer simulating IoT devices
-│   └── spark_transform.py   # PySpark job managing streaming ETL
+│   ├── metrics_spec.py      # Sensor data contract: valid ranges + drift baselines (single source of truth)
+│   ├── data_quality.py      # Per-batch data-quality metrics (accept rate, rejections by reason) → Redis TS
+│   ├── drift.py             # Statistical drift detection (z-test of batch mean vs baseline) → Redis TS
+│   └── spark_transform.py   # PySpark job: valid → Redis, rejected → DLQ, DQ + drift → Redis observability
 ├── .env                     # Configuration file for environment variables (ignored by git)
 ├── .env.example             # Template for environment configuration
 ├── .gitignore               # Files excluded from Git version control
