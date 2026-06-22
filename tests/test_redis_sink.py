@@ -5,12 +5,11 @@ closure so they can be exercised against a mocked Redis client — no real Redis
 Spark, or Docker. The thin `foreachBatch`/`foreachPartition` wiring (connection
 setup, per-row error logging) remains integration-deferred.
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, call
 
 import pytest
 import redis
-
 from spark_transform import (
     RETENTION_MS,
     redis_key,
@@ -20,7 +19,7 @@ from spark_transform import (
 )
 
 # 2024-01-01T12:00:00Z -> 1704110400 s -> 1704110400000 ms
-TS = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+TS = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
 TS_MS = 1704110400000
 
 ROW = {

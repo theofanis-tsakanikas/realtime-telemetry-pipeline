@@ -9,7 +9,6 @@ proving that bad types and missing keys become null and are then dropped.
 import json
 
 from pyspark.sql.functions import col, from_json
-
 from spark_transform import clean_data, schema
 
 VALID_TS = "2024-01-01T12:00:00+00:00"

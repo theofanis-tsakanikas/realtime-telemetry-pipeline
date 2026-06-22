@@ -17,7 +17,7 @@ import random
 import signal
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from confluent_kafka import Producer
 from confluent_kafka.admin import AdminClient, NewTopic
@@ -58,7 +58,7 @@ def create_kafka_topic() -> None:
         # Call create_topics, which returns a dictionary of futures
         fs = admin_client.create_topics([topic])
 
-        for topic_name, f in fs.items():
+        for _topic_name, f in fs.items():
             try:
                 f.result()  # Wait for the operation to finish
                 logger.info("Topic '%s' created successfully.", KAFKA_TOPIC)
@@ -119,7 +119,7 @@ def generate_sensor_data(sensor_id: int) -> dict:
         "temperature": round(random.uniform(15.0, 35.0), 2),
         "humidity": round(random.uniform(30.0, 80.0), 2),
         "pressure": round(random.uniform(990.0, 1025.0), 2),
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(UTC).isoformat()
     }
 
     # Introduce data quality anomalies

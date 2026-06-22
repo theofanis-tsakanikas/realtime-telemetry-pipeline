@@ -1,2 +1,6 @@
-pytest
-ruff
+# Dev/test-only dependencies (not installed into the Docker images).
+pytest==9.0.3
+pytest-cov==7.1.0
+ruff==0.15.15
+# pandas backs the Streamlit app's data layer; required to test app/sensor_data.py.
+pandas==3.0.3

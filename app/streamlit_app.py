@@ -19,13 +19,11 @@ Data source:
 from __future__ import annotations
 
 import os
-import time
 
 import pandas as pd
 import plotly.graph_objects as go
-import streamlit as st
-
 import sensor_data as sd
+import streamlit as st
 
 # --------------------------------------------------------------------------- #
 # Page config + secrets
@@ -174,7 +172,7 @@ def live_wall() -> None:
     # ── Per-sensor cards with focus-metric sparkline ─────────────────────────
     st.markdown(f"##### {sd.METRIC_META[metric]['icon']} Sensor wall — {metric}")
     cols = st.columns(len(sensors))
-    for col, sid in zip(cols, sensors):
+    for col, sid in zip(cols, sensors, strict=True):
         sdf = df[df["sensor_id"] == sid]
         with col:
             # current values per metric
@@ -196,13 +194,13 @@ def live_wall() -> None:
             series = sdf[sdf["metric"] == metric].sort_values("timestamp")
             fig = go.Figure(go.Scatter(
                 x=series["timestamp"], y=series["value"], mode="lines",
-                line=dict(color=sd.METRIC_META[metric]["color"], width=2), fill="tozeroy",
+                line={"color": sd.METRIC_META[metric]["color"], "width": 2}, fill="tozeroy",
                 fillcolor="rgba(56,189,248,0.08)",
             ))
-            fig.update_layout(height=90, margin=dict(l=0, r=0, t=0, b=0),
+            fig.update_layout(height=90, margin={"l": 0, "r": 0, "t": 0, "b": 0},
                               paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                              xaxis=dict(visible=False),
-                              yaxis=dict(visible=False, range=sd.METRIC_META[metric]["band"]))
+                              xaxis={"visible": False},
+                              yaxis={"visible": False, "range": sd.METRIC_META[metric]["band"]})
             st.plotly_chart(fig, use_container_width=True,
                             config={"displayModeBar": False}, key=f"spark_{sid}_{metric}")
 
@@ -215,15 +213,15 @@ def live_wall() -> None:
     for i, sid in enumerate(sensors):
         s = df[(df["sensor_id"] == sid) & (df["metric"] == metric)].sort_values("timestamp")
         big.add_trace(go.Scatter(x=s["timestamp"], y=s["value"], mode="lines",
-                                 name=sid, line=dict(color=palette[i % len(palette)], width=2)))
+                                 name=sid, line={"color": palette[i % len(palette)], "width": 2}))
     lo, hi = sd.METRIC_META[metric]["band"]
     big.add_hrect(y0=lo, y1=hi, fillcolor="rgba(34,197,94,0.07)", line_width=0,
                   annotation_text="normal band", annotation_position="top left")
-    big.update_layout(height=340, margin=dict(l=10, r=10, t=10, b=10),
+    big.update_layout(height=340, margin={"l": 10, "r": 10, "t": 10, "b": 10},
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                      font_color="#cbd5e1", legend=dict(orientation="h"),
-                      xaxis=dict(gridcolor="rgba(148,163,184,0.12)"),
-                      yaxis=dict(gridcolor="rgba(148,163,184,0.12)"))
+                      font_color="#cbd5e1", legend={"orientation": "h"},
+                      xaxis={"gridcolor": "rgba(148,163,184,0.12)"},
+                      yaxis={"gridcolor": "rgba(148,163,184,0.12)"})
     st.plotly_chart(big, use_container_width=True, key=f"big_{metric}")
 
     # ── Pipeline health strip ────────────────────────────────────────────────

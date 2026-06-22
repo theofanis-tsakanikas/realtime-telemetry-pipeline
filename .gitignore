@@ -5,6 +5,19 @@ __pycache__/
 *$py.class
 *.env
 
+# === Tooling caches & test/coverage artifacts ===
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# === Spark / Derby scratch (test runs) ===
+spark-warehouse/
+metastore_db/
+derby.log
+
 # === Project Specific Data (checkpoints, logs, data) ===
 # We ignore the actual data files, checkpoints, and logs, but keep the directory structure and .gitkeep files for checkpoints and logs.
 data/checkpoints/*

@@ -22,6 +22,10 @@ kafka-spark-redis-streaming-etl/
 │       │   └── dashboards/provider.yml  # Tells Grafana where to find dashboard JSON
 │       └── dashboards/
 │           └── iot-sensors.json         # Provisioned dashboard (8 panels incl. Data Quality & Drift)
+├── app/                        # Streamlit "Sensor Wall" — standalone deployable (own pinned reqs)
+│   ├── sensor_data.py          # Data layer: in-process demo synth + Redis (live) reader
+│   ├── streamlit_app.py        # Live auto-refreshing UI
+│   └── requirements.txt        # App-only dependencies (pinned)
 ├── scripts/
 │   ├── sensor_simulator.py     # Confluent Kafka producer; emits ~20% anomalous sensor data
 │   ├── metrics_spec.py         # Sensor data contract: valid ranges + normal-operation baselines (single source of truth)
@@ -29,15 +33,21 @@ kafka-spark-redis-streaming-etl/
 │   ├── drift.py                # Statistical drift detection (z-test of batch mean vs baseline) → Redis TS
 │   └── spark_transform.py      # PySpark job; valid → Redis, rejected → DLQ topic, DQ+drift → Redis observability
 ├── tests/
-│   ├── conftest.py             # Session-scoped SparkSession fixture
+│   ├── conftest.py             # Session-scoped SparkSession fixture (tmp warehouse/derby — no repo leak)
 │   ├── test_spark_transform.py # clean_data() unit tests
+│   ├── test_clean_data_extra.py# clean_data() range/boundary + from_json schema enforcement
+│   ├── test_rejected_data.py   # rejected_data() reasons + clean/rejected partition the input
 │   ├── test_data_quality.py    # data-quality metrics
-│   └── test_drift.py           # drift detector
+│   ├── test_drift.py           # drift detector
+│   ├── test_redis_sink.py      # write_row()/key building vs a mocked Redis client
+│   ├── test_sensor_simulator.py# generate_sensor_data() schema, anomaly rates, determinism
+│   └── test_app_sensor_data.py # Streamlit data layer + contract-drift guard vs metrics_spec
 ├── .env.example                # Template — copy to .env before building Docker images
-├── Makefile                    # Task runner (wraps run.sh; adds test, lint, clean)
-├── pytest.ini                  # Pytest path and testpaths config
+├── .pre-commit-config.yaml     # Optional local ruff + hygiene hooks
+├── Makefile                    # Task runner (wraps run.sh; adds test, coverage, lint, clean)
+├── pyproject.toml              # Project metadata + ruff / pytest / coverage config (replaces pytest.ini)
 ├── requirements.txt            # Runtime Python dependencies (used by Docker images)
-├── requirements-dev.txt        # Dev-only dependencies: pytest, ruff
+├── requirements-dev.txt        # Dev-only dependencies: pytest, pytest-cov, ruff, pandas
 ├── run.sh                      # Docker Compose wrapper (up/down/build/logs/ps/restart)
 └── setup.sh                    # One-time local dev environment setup
 ```
@@ -111,7 +121,8 @@ make stop           # or: ./run.sh down
 | `make logs` | Stream live container logs |
 | `make ps` | Show container statuses |
 | `make test` | Run pytest unit tests via local `.venv` |
-| `make lint` | Run ruff linter on `scripts/` and `tests/` |
+| `make coverage` | Run pytest with a coverage report (terminal + `htmlcov/`) |
+| `make lint` | Run ruff linter on `scripts/`, `tests/`, and `app/` |
 | `make clean` | Stop containers and clear `data/checkpoints` and `data/logs` |
 
 ---
@@ -170,15 +181,17 @@ Grafana dashboard (infra/grafana/dashboards/iot-sensors.json)
 
 ## Running Tests Locally
 
-Tests cover `clean_data()` in `scripts/spark_transform.py`. They use a local SparkSession
-(`local[*]`) and require **no running containers** — no Kafka, no Redis, no Docker.
+Tests cover the transformation/observability logic (`clean_data`, `rejected_data`,
+data-quality, drift, the Redis sink command-building, the simulator, and the Streamlit data
+layer). They use a local SparkSession (`local[*]`) and a mocked Redis client, and require
+**no running containers** — no Kafka, no Redis, no Docker.
 
 ```bash
 # Activate venv first (setup.sh creates it)
 source .venv/bin/activate
 
-make test    # runs: pytest tests/ -v --tb=short
-make lint    # runs: ruff check scripts/ tests/
+make test    # runs: pytest tests/ -v
+make lint    # runs: ruff check scripts/ tests/ app/
 ```
 
 The Spark Kafka connector JAR is **not** downloaded during tests. The test SparkSession is
