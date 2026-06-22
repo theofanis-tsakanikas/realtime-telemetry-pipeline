@@ -18,3 +18,9 @@ repos:
       - id: ruff
         name: ruff (lint scripts/ tests/ app/)
         args: [--fix]
+
+  # Secret scanning — blocks credentials/keys from being committed
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
