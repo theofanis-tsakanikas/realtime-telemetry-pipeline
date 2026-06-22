@@ -44,5 +44,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `run.sh` Docker Compose wrapper and `setup.sh` local environment bootstrap script.
 - Project README with architecture overview, quick start guide, and verification screenshots.
 
-[Unreleased]: https://github.com/theofanis-tsakanikas/kafka-spark-redis-streaming-etl/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/theofanis-tsakanikas/kafka-spark-redis-streaming-etl/releases/tag/v0.1.0
+[Unreleased]: https://github.com/theofanis-tsakanikas/realtime-telemetry-pipeline/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/theofanis-tsakanikas/realtime-telemetry-pipeline/releases/tag/v0.1.0

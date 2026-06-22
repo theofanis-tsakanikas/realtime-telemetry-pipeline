@@ -1,15 +1,15 @@
 <div style="background-color:#fff8e7; color:#2b2b2b; padding:20px; border-radius:10px;">
 
-# 📡 Real-Time IoT Data Pipeline: Kafka ➔ Spark ➔ Redis ➔ Grafana
+# 📡 Real-Time Telemetry Pipeline — Streaming Sensor Data Quality & Drift Monitoring
 
-[![CI](https://github.com/theofanis-tsakanikas/kafka-spark-redis-streaming-etl/actions/workflows/ci.yml/badge.svg)](https://github.com/theofanis-tsakanikas/kafka-spark-redis-streaming-etl/actions/workflows/ci.yml)
+[![CI](https://github.com/theofanis-tsakanikas/realtime-telemetry-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/theofanis-tsakanikas/realtime-telemetry-pipeline/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 ![Apache Kafka](https://img.shields.io/badge/Apache%20Kafka-231F20?logo=apachekafka&logoColor=white)
 ![Apache Spark](https://img.shields.io/badge/Apache%20Spark%203.5-E25A1C?logo=apachespark&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis%20Stack-DC382D?logo=redis&logoColor=white)
 ![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)
 
-![Project Overview](./images/kafka-spark-redis-streaming-etl.png)
+![Real-Time Telemetry Pipeline](./images/banner.png)
 
 This project demonstrates a robust, scalable real-time IoT data processing pipeline. It simulates data from multiple environmental sensors, streams it through `Apache Kafka`, processes it using `Apache Spark` Structured Streaming, stores time-series data in `Redis`, and visualizes live insights via `Grafana` dashboards.
 
@@ -19,6 +19,7 @@ The entire infrastructure is containerized using `Docker` and managed with conve
 
 ## 📑 Table of Contents
 
+- [Architecture](#-architecture)
 - [What This Demonstrates](#-what-this-demonstrates)
 - [Key Features](#-key-features)
 - [Data Engineering & Transformation (PySpark)](#-data-engineering--transformation-pyspark)
@@ -34,6 +35,24 @@ The entire infrastructure is containerized using `Docker` and managed with conve
 - [License](#-license)
 
 > For a deeper engineering reference — service ports, end-to-end data flow, test coverage, and known failure modes — see [CLAUDE.md](./CLAUDE.md).
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    SIM["Sensor Simulator<br/>5 sensors · ~20% anomalies"] -->|JSON| K["Apache Kafka<br/>topic: sensor_data"]
+    K --> SP["Spark Structured Streaming<br/>contract validation · clean_data()"]
+    SP -->|valid readings| R[("Redis TimeSeries<br/>sensor:id:metric")]
+    SP -->|rejected + reason| DLQ["Kafka DLQ<br/>sensor_data_rejected"]
+    SP -->|per-batch quality + drift z-test| OBS[("Redis TimeSeries<br/>dq:* · drift:*")]
+    R --> G["Grafana<br/>live sensor dashboards"]
+    OBS --> G2["Grafana<br/>Data Quality &amp; Drift row · 3σ alert"]
+```
+
+A single declared data contract (`scripts/metrics_spec.py`) is the source of truth for validation,
+the dead-letter routing, and the drift baselines — the same ranges guard every stage of the pipeline.
 
 ---
 
@@ -103,7 +122,7 @@ To abstract away complex Docker Compose commands and make developer onboarding s
 
 ## 📂 Project Structure
 ```text
-kafka-spark-redis-streaming-etl/
+realtime-telemetry-pipeline/
 ├── .github/                  # CI workflow, Dependabot, issue/PR templates
 │   └── workflows/ci.yml      # Ruff lint + pytest (with coverage) on push & PR
 ├── app/                      # Streamlit "Sensor Wall" — standalone deployable
@@ -151,8 +170,8 @@ This project includes automated scripts to make deployment seamless.
 
 Clone the repository and prepare the environment. This will create your local Python environment, install dependencies, create local data directories for Docker volumes, and prepare your .env file.
 ```bash
-git clone https://github.com/yourusername/kafka-spark-redis-streaming-etl.git
-cd kafka-spark-redis-streaming-etl
+git clone https://github.com/yourusername/realtime-telemetry-pipeline.git
+cd realtime-telemetry-pipeline
 ```
 ```bash
 # Give execution permissions to the scripts (Only needs to be done once)

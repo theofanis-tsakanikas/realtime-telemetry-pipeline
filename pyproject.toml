@@ -1,5 +1,5 @@
 [project]
-name = "kafka-spark-redis-streaming-etl"
+name = "realtime-telemetry-pipeline"
 version = "1.0.0"
 description = "Real-time IoT streaming ETL: Kafka -> Spark Structured Streaming -> Redis TimeSeries -> Grafana, with a dead-letter queue and live data-quality + drift observability."
 readme = "README.md"

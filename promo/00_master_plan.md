@@ -1,4 +1,4 @@
-# Promo Video — Master Plan (Real-Time IoT Streaming)
+# Promo Video — Master Plan (Real-Time Telemetry Pipeline)
 
 ## Goal & audience
 A LinkedIn / portfolio piece. A recruiter or engineer must grasp in **~10 seconds**:
