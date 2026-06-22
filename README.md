@@ -40,16 +40,7 @@ The entire infrastructure is containerized using `Docker` and managed with conve
 
 ## 🏗️ Architecture
 
-```mermaid
-flowchart LR
-    SIM["Sensor Simulator<br/>5 sensors · ~20% anomalies"] -->|JSON| K["Apache Kafka<br/>topic: sensor_data"]
-    K --> SP["Spark Structured Streaming<br/>contract validation · clean_data()"]
-    SP -->|valid readings| R[("Redis TimeSeries<br/>sensor:id:metric")]
-    SP -->|rejected + reason| DLQ["Kafka DLQ<br/>sensor_data_rejected"]
-    SP -->|per-batch quality + drift z-test| OBS[("Redis TimeSeries<br/>dq:* · drift:*")]
-    R --> G["Grafana<br/>live sensor dashboards"]
-    OBS --> G2["Grafana<br/>Data Quality &amp; Drift row · 3σ alert"]
-```
+![Real-Time Telemetry Pipeline — Architecture](./images/architecture.png)
 
 A single declared data contract (`scripts/metrics_spec.py`) is the source of truth for validation,
 the dead-letter routing, and the drift baselines — the same ranges guard every stage of the pipeline.
