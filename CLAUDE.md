@@ -1,4 +1,4 @@
-# IoT Streaming Pipeline — Engineering Reference
+# Real-Time Telemetry Pipeline — Engineering Reference
 
 Real-time pipeline: IoT sensor simulation → Apache Kafka → Spark Structured Streaming → Redis TimeSeries → Grafana.
 
@@ -7,7 +7,7 @@ Real-time pipeline: IoT sensor simulation → Apache Kafka → Spark Structured 
 ## Repo Structure
 
 ```
-kafka-spark-redis-streaming-etl/
+realtime-telemetry-pipeline/
 ├── .github/
 │   └── workflows/
 │       └── ci.yml              # Ruff linting + pytest on push and PR
