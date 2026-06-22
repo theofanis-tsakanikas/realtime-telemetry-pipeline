@@ -37,6 +37,9 @@ load_dotenv()  # Load environment variables from .env file
 
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "localhost:29092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "sensor_data")
+# Partition the topic so Spark consumes it in parallel; messages are keyed by
+# sensor_id, so each sensor's readings stay ordered within its partition.
+KAFKA_PARTITIONS = int(os.getenv("KAFKA_PARTITIONS", 3))
 SENSOR_COUNT = int(os.getenv("SENSOR_COUNT", 5))
 DELAY_SECONDS = float(os.getenv("DELAY_SECONDS", 1))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", 10))
@@ -53,7 +56,7 @@ def create_kafka_topic() -> None:
     """
     try:
         admin_client = AdminClient({"bootstrap.servers": KAFKA_BROKER})
-        topic = NewTopic(KAFKA_TOPIC, num_partitions=1, replication_factor=1)
+        topic = NewTopic(KAFKA_TOPIC, num_partitions=KAFKA_PARTITIONS, replication_factor=1)
 
         # Call create_topics, which returns a dictionary of futures
         fs = admin_client.create_topics([topic])

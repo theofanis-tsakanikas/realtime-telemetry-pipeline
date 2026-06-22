@@ -58,12 +58,12 @@ kafka-spark-redis-streaming-etl/
 
 | Service | URL / Address | Notes |
 |---|---|---|
-| Grafana | http://localhost:3000 | Login: admin / admin |
+| Grafana | http://localhost:3000 | Login: admin / `$GRAFANA_ADMIN_PASSWORD` (default `admin`) |
 | Kafka-UI | http://localhost:8085 | Topic browser, consumer group offsets |
 | RedisInsight (embedded) | http://localhost:8001 | Built into redis-stack image |
 | RedisInsight (standalone) | http://localhost:5540 | Separate container; same Redis instance |
 | Spark UI | http://localhost:4040 | Available only while spark-processor is running; binds after first micro-batch |
-| Redis | localhost:6379 | Direct TCP — use `redis-cli` or RedisInsight |
+| Redis | localhost:6379 | Direct TCP — password-protected: `redis-cli -a $REDIS_PASSWORD` (default `iot-streaming-demo`) |
 | Kafka broker (external) | localhost:29092 | For producers/consumers running on your host machine |
 | Kafka broker (internal) | kafka-broker:9092 | Docker-network-only; used by the simulator and Spark containers |
 
@@ -138,7 +138,7 @@ sensor_simulator.py
   │    - pressure=2000–3000 hPa   (5% of messages, extreme outlier)
   │    - missing timestamp key    (5% of messages)
   ▼
-Kafka topic: sensor_data  (1 partition, replication factor 1)
+Kafka topic: sensor_data  (KAFKA_PARTITIONS partitions, default 3; replication factor 1)
   │  Spark reads with startingOffsets=latest
   ▼
 spark_transform.py — clean_data()
@@ -282,3 +282,15 @@ left-hand port number in `infra/docker-compose.yml` and update this file accordi
 The `sensor_data_rejected` topic only receives rows after the simulator has emitted anomalies
 (~20% of messages). Check Kafka-UI (http://localhost:8085) → Topics → `sensor_data_rejected`
 and inspect the `rejection_reason` field of each message.
+
+### Topic still shows 1 partition after changing `KAFKA_PARTITIONS`
+`num_partitions` only applies when the topic is **created**. If the broker already has the
+topic, the simulator logs "already exists" and the old count sticks. The broker stores no data
+volume here, so a full `make stop && make start` recreates the broker (and the topic) with the
+new partition count. (Kafka can only *increase* partitions, never decrease.)
+
+### Redis commands return `NOAUTH Authentication required`
+Redis now runs with `--requirepass`. Authenticate with `redis-cli -a $REDIS_PASSWORD`
+(default `iot-streaming-demo`). The Spark sink and the Grafana datasource read `REDIS_PASSWORD`
+from their container environment; if you change it, change it in `.env` (or the compose
+defaults) so all three agree.

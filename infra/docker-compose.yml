@@ -40,8 +40,11 @@ services:
     ports:
       - "6379:6379"
       - "8001:8001"
+    environment:
+      # redis-stack passes REDIS_ARGS to redis-server; require a password.
+      - REDIS_ARGS=--requirepass ${REDIS_PASSWORD:-iot-streaming-demo}
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:-iot-streaming-demo} --no-auth-warning ping | grep PONG"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -57,7 +60,9 @@ services:
       - "3000:3000"
     environment:
       - GF_INSTALL_PLUGINS=redis-datasource
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      # Consumed by the provisioned Redis datasource (secureJsonData).
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-iot-streaming-demo}
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/dashboards:/var/lib/grafana/dashboards
@@ -78,6 +83,7 @@ services:
         condition: service_healthy
     environment:
       - KAFKA_BROKER=kafka-broker:9092 # Internal Docker network address
+      - KAFKA_PARTITIONS=${KAFKA_PARTITIONS:-3}
     networks:
       - stream-net
 
@@ -97,6 +103,7 @@ services:
     environment:
       - KAFKA_BROKER=kafka-broker:9092
       - REDIS_HOST=redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-iot-streaming-demo}
       - CHECKPOINT_DIR=/data/checkpoints/sensor_data
     volumes:
       # Persist streaming checkpoints on the host so exactly-once state

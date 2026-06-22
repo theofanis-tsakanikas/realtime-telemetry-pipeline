@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Topic partitioning (`KAFKA_PARTITIONS`, default 3) so Spark Structured Streaming consumes the stream in parallel; messages keyed by `sensor_id` preserve per-sensor ordering within a partition.
+- Redis authentication (`REDIS_PASSWORD`, applied to the broker via `--requirepass`, the Spark sink, and the provisioned Grafana datasource) and a configurable Grafana admin password (`GRAFANA_ADMIN_PASSWORD`).
+- README "Production Considerations" section honestly documenting the demo-vs-production gaps (HA, SASL/TLS, resource footprint, real data source, durability).
 - `CLAUDE.md` engineering reference covering repo structure, service ports, prerequisites, end-to-end data flow, and known failure modes.
 - `Makefile` task runner wrapping `run.sh` and adding `test`, `lint`, and `clean` targets; auto-sets `JAVA_HOME` for local PySpark runs.
 - GitHub Actions CI workflow (`.github/workflows/ci.yml`) running Ruff linting and pytest on every push and pull request, with Python 3.12, Java 17, and pip caching.

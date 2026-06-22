@@ -40,6 +40,8 @@ logger = logging.getLogger(__name__)
 # ============================================================
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+# Optional Redis auth — None (no password) keeps local/unauthenticated runs working.
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD") or None
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:9092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "sensor_data")
 DLQ_TOPIC = os.getenv("DLQ_TOPIC", "sensor_data_rejected")
@@ -202,7 +204,7 @@ def write_to_redis(batch_df, batch_id: int) -> None:
         One connection + pipeline per partition (Spark best practice). Per-row
         errors are logged so one bad row cannot fail the batch.
         """
-        r = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
+        r = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0, password=REDIS_PASSWORD)
         pipe = r.pipeline(transaction=False)
         pending = 0
 
@@ -253,7 +255,7 @@ def write_observability(batch_df, batch_id: int) -> None:
         metrics = quality_metrics(batch_df, rejected_data)
         drift = batch_drift(_clean_batch_summaries(clean_data(batch_df)))
 
-        r = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0)
+        r = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0, password=REDIS_PASSWORD)
         pipe = r.pipeline(transaction=False)
         write_dq_metrics(pipe, metrics, timestamp_ms)
         write_drift_metrics(pipe, drift, timestamp_ms)
