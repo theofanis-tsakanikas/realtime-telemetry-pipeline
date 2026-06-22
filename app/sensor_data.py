@@ -121,13 +121,15 @@ def estimate_rejects(clean_samples: int) -> int:
 class RedisConfig:
     host: str = os.getenv("REDIS_HOST", "localhost")
     port: int = int(os.getenv("REDIS_PORT", "6379"))
+    # None when unset, so unauthenticated local Redis still works.
+    password: str | None = os.getenv("REDIS_PASSWORD") or None
 
 
 def redis_available(cfg: RedisConfig) -> bool:
     """True if a Redis Stack with TimeSeries is reachable and has sensor keys."""
     try:
         import redis  # lazy import
-        r = redis.Redis(host=cfg.host, port=cfg.port, socket_connect_timeout=1.5)
+        r = redis.Redis(host=cfg.host, port=cfg.port, password=cfg.password, socket_connect_timeout=1.5)
         r.ping()
         return True
     except Exception:
@@ -142,7 +144,7 @@ def read_timeseries(cfg: RedisConfig, minutes: int = 10) -> pd.DataFrame:
     helper version.
     """
     import redis  # lazy import
-    r = redis.Redis(host=cfg.host, port=cfg.port, decode_responses=True)
+    r = redis.Redis(host=cfg.host, port=cfg.port, password=cfg.password, decode_responses=True)
     now_ms = int(time.time() * 1000)
     from_ms = now_ms - minutes * 60 * 1000
 

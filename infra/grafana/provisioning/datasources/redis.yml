@@ -10,3 +10,7 @@ datasources:
     url: redis://redis:6379
     isDefault: true
     editable: true
+    # Password comes from the REDIS_PASSWORD env var passed to the Grafana
+    # container (Grafana interpolates $VARS in provisioning files).
+    secureJsonData:
+      password: $REDIS_PASSWORD

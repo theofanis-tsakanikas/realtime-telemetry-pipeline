@@ -30,6 +30,7 @@ The entire infrastructure is containerized using `Docker` and managed with conve
 - [Data Validation & Verification](#-data-validation--verification)
 - [Grafana Visualization Dashboards](#-grafana-visualization-dashboards)
 - [Project Shutdown](#-project-shutdown)
+- [Production Considerations](#-production-considerations)
 - [License](#-license)
 
 > For a deeper engineering reference — service ports, end-to-end data flow, test coverage, and known failure modes — see [CLAUDE.md](./CLAUDE.md).
@@ -261,7 +262,7 @@ This screenshot shows:
 
 ## 📊 Grafana Visualization Dashboards
 
-The final stage is visualization. Access Grafana at `http://localhost:3000` (default login: admin/admin). Data sources and dashboards are pre-configured.
+The final stage is visualization. Access Grafana at `http://localhost:3000` (login: `admin` / the `GRAFANA_ADMIN_PASSWORD` from your `.env`, default `admin`). Data sources and dashboards are pre-configured.
 
 ### Dashboard 1: "All Sensors Temperature"
 
@@ -294,6 +295,26 @@ When you are finished, stop and remove all containers.
 ```bash
 ./run.sh down
 ```
+---
+
+## 🏭 Production Considerations
+
+This is a **portfolio / local-demo** stack, deliberately scoped to run on a single machine.
+The following are the honest gaps between this demo and a production deployment — and what the
+project already does toward each:
+
+| Concern | This demo | For production |
+|---|---|---|
+| **Parallelism** | Topic is partitioned (`KAFKA_PARTITIONS`, default **3**); Spark consumes partitions in parallel, messages keyed by `sensor_id` keep per-sensor ordering. | Size partitions to peak throughput and consumer count; monitor consumer lag. |
+| **High availability** | Single Kafka broker in KRaft mode, `replication-factor=1`. | ≥3 brokers, `replication-factor=3`, `min.insync.replicas=2`; Spark on a real cluster (YARN/K8s) with multiple executors. |
+| **Authentication** | Redis is password-protected (`REDIS_PASSWORD`); Grafana admin password is configurable (`GRAFANA_ADMIN_PASSWORD`). | Add Kafka **SASL/TLS** and Redis ACLs; terminate TLS everywhere; manage secrets in a vault, never in `.env`. |
+| **Resource footprint** | Needs ≥8 GB RAM (Kafka + Spark JVMs + Redis + Grafana on one host). | Dedicated nodes per tier; tuned JVM heaps; autoscaling. |
+| **Data source** | A simulator emits synthetic readings (with a ~20% anomaly rate by design, to exercise the cleaning logic). | Replace with real device telemetry (e.g. an MQTT bridge / Kafka Connect source); keep the same contract, cleaning, and observability. |
+| **Durability** | Spark checkpoints persist to a host volume; the Kafka broker keeps no data volume (ephemeral). | Persistent, replicated storage for both broker logs and checkpoints. |
+
+The transformation, data-quality, drift, and contract logic are written to be production-grade
+already — what changes for production is the **infrastructure around them**, not the pipeline code.
+
 ---
 
 ## 📜 License
