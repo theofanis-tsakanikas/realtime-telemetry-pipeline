@@ -9,7 +9,6 @@ integration-deferred.
 import random
 
 import pytest
-
 from sensor_simulator import generate_sensor_data
 
 # Sample size for the statistical rate checks. With a fixed seed the outcome is

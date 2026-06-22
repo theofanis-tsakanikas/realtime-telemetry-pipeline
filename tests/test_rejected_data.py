@@ -5,7 +5,6 @@ lands in exactly one of the two outputs, and each rejected row carries the
 first rule it violated in `rejection_reason`.
 """
 import pytest
-
 from spark_transform import clean_data, rejected_data, schema
 
 VALID = ("sensor_1", 25.0, "60.0", 1013.0, "2024-01-01T12:00:00+00:00")

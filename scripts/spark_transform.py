@@ -21,13 +21,12 @@ from datetime import datetime
 from functools import reduce
 
 import redis
-from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import avg, col, count, from_json, lit, struct, to_json, to_timestamp, when
-from pyspark.sql.types import DoubleType, StringType, StructField, StructType
-
 from data_quality import quality_metrics, write_dq_metrics
 from drift import batch_drift, write_drift_metrics
 from metrics_spec import METRICS
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql.functions import avg, col, count, from_json, lit, struct, to_json, to_timestamp, when
+from pyspark.sql.types import DoubleType, StringType, StructField, StructType
 
 logging.basicConfig(
     level=logging.INFO,

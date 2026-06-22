@@ -146,7 +146,7 @@ def read_timeseries(cfg: RedisConfig, minutes: int = 10) -> pd.DataFrame:
     now_ms = int(time.time() * 1000)
     from_ms = now_ms - minutes * 60 * 1000
 
-    keys = [k for k in r.scan_iter(match="sensor:*:*")]
+    keys = list(r.scan_iter(match="sensor:*:*"))
     rows: list[dict] = []
     for key in keys:
         # key = sensor:sensor_3:temperature

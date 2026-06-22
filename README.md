@@ -26,6 +26,7 @@ The entire infrastructure is containerized using `Docker` and managed with conve
 - [CLI Automation Wrapper (run.sh)](#-cli-automation-wrapper-runsh)
 - [Project Structure](#-project-structure)
 - [Quick Start Guide](#-quick-start-guide)
+- [Tests & Code Quality](#-tests--code-quality)
 - [Data Validation & Verification](#-data-validation--verification)
 - [Grafana Visualization Dashboards](#-grafana-visualization-dashboards)
 - [Project Shutdown](#-project-shutdown)
@@ -102,31 +103,42 @@ To abstract away complex Docker Compose commands and make developer onboarding s
 ## 📂 Project Structure
 ```text
 kafka-spark-redis-streaming-etl/
-├── .venv/                   # Python Virtual Environment (Local)
-├── data/                    # Local volume storage for logs & checkpoints
-│   ├── checkpoints/         # Spark Structured Streaming checkpoints
-│   └── logs/                # Simulator and processing logs
-├── docker/                  # Dockerfiles for custom images
-│   ├── Dockerfile.simulator # Image for the Python Sensor Simulator
-│   └── Dockerfile.spark     # Image for Apache Spark Processing
-├── images/                  # Directory for project screenshots
-├── infra/                   # Infrastructure configuration
-│   ├── docker-compose.yml   # Main Docker Compose orchestration file (Kafka in KRaft mode)
-│   └── grafana/             # Provisioned datasource + the Data Quality & Drift dashboard JSON
-├── scripts/                 # Source code scripts
-│   ├── sensor_simulator.py  # Python producer simulating IoT devices
-│   ├── metrics_spec.py      # Sensor data contract: valid ranges + drift baselines (single source of truth)
-│   ├── data_quality.py      # Per-batch data-quality metrics (accept rate, rejections by reason) → Redis TS
-│   ├── drift.py             # Statistical drift detection (z-test of batch mean vs baseline) → Redis TS
-│   └── spark_transform.py   # PySpark job: valid → Redis, rejected → DLQ, DQ + drift → Redis observability
-├── .env                     # Configuration file for environment variables (ignored by git)
-├── .env.example             # Template for environment configuration
-├── .gitignore               # Files excluded from Git version control
-├── LICENSE                  # Project License
-├── README.md                # Project documentation
-├── requirements.txt         # Local Python dependencies (for setup)
-├── run.sh                   # Utility script for Docker management
-└── setup.sh                 # Initial environment setup script
+├── .github/                  # CI workflow, Dependabot, issue/PR templates
+│   └── workflows/ci.yml      # Ruff lint + pytest (with coverage) on push & PR
+├── app/                      # Streamlit "Sensor Wall" — standalone deployable
+│   ├── sensor_data.py        # Data layer: in-process demo synth + Redis (live) reader
+│   ├── streamlit_app.py      # Live auto-refreshing UI
+│   └── requirements.txt      # App-only dependencies (pinned)
+├── data/                     # Local volume storage for logs & checkpoints (gitignored)
+│   ├── checkpoints/          # Spark Structured Streaming checkpoints
+│   └── logs/                 # Simulator and processing logs
+├── docker/
+│   ├── Dockerfile.simulator  # Image for the Python sensor simulator
+│   └── Dockerfile.spark      # Image for the PySpark job
+├── images/                   # README screenshots
+├── infra/
+│   ├── docker-compose.yml    # Orchestrates the 7 services (Kafka in KRaft mode)
+│   └── grafana/              # Provisioned datasource + Data Quality & Drift dashboard JSON
+├── promo/                    # Portfolio / demo-video plans
+├── scripts/
+│   ├── sensor_simulator.py   # Kafka producer; emits ~20% deliberate anomalies
+│   ├── metrics_spec.py       # Sensor data contract: valid ranges + drift baselines (single source of truth)
+│   ├── data_quality.py       # Per-batch data-quality metrics (accept rate, rejections by reason) → Redis TS
+│   ├── drift.py              # Statistical drift detection (z-test of batch mean vs baseline) → Redis TS
+│   └── spark_transform.py    # PySpark job: valid → Redis, rejected → DLQ, DQ + drift → Redis observability
+├── tests/                    # Pytest suite (clean/rejected data, DQ, drift, Redis sink, simulator, app)
+├── .env.example              # Template for environment configuration (copy to .env)
+├── .gitignore
+├── .pre-commit-config.yaml   # Optional local lint + hygiene hooks
+├── CHANGELOG.md
+├── LICENSE                   # MIT
+├── Makefile                  # Task runner (start/stop/build/test/coverage/lint/clean)
+├── pyproject.toml            # Project metadata + ruff / pytest / coverage config
+├── README.md
+├── requirements.txt          # Runtime dependencies (baked into the Docker images)
+├── requirements-dev.txt      # Dev/test dependencies (pytest, pytest-cov, ruff, pandas)
+├── run.sh                    # Docker Compose wrapper
+└── setup.sh                  # One-time local dev environment setup
 ```
 ---
 
@@ -178,6 +190,45 @@ Check the status of all containers to ensure they are healthy.
 ```bash
 ./run.sh ps
 ```
+---
+
+## 🧪 Tests & Code Quality
+
+The transformation and observability logic is unit-tested in isolation — **no Kafka, Redis,
+Spark cluster or Docker required**. Tests run against a local `SparkSession` (session-scoped
+fixture) and a mocked Redis client, so the suite is fast and CI-friendly.
+
+```bash
+source .venv/bin/activate     # created by ./setup.sh
+
+make test        # pytest — full suite
+make coverage    # pytest with a coverage report (terminal + htmlcov/)
+make lint        # ruff check scripts/ tests/ app/
+```
+
+What's covered:
+
+| Area | Tests |
+|---|---|
+| `clean_data()` | range/boundary filtering, regex humidity casting, schema/type enforcement via `from_json` |
+| `rejected_data()` | every rejection reason; valid + rejected exactly partition the input |
+| Data quality | per-batch accept rate and rejection breakdown (`data_quality.py`) |
+| Drift | z-score vs baseline, alert threshold, empty/degenerate batches (`drift.py`) |
+| Redis sink | key scheme, ms conversion, idempotent `TS.ADD` args (mocked client) |
+| Simulator | message schema, ~20% anomaly rate per type, deterministic-by-seed output |
+| Streamlit app | demo synthesis, banding, pivots, and a **contract-drift guard** asserting the app's ranges still match `metrics_spec.py` |
+
+Tooling is centralised in [pyproject.toml](./pyproject.toml) (ruff + pytest + coverage), and
+the same `ruff` check is available as an optional pre-commit hook
+([.pre-commit-config.yaml](./.pre-commit-config.yaml)):
+
+```bash
+pip install pre-commit && pre-commit install
+```
+
+CI ([.github/workflows/ci.yml](./.github/workflows/ci.yml)) runs the lint and the full test
+suite (with coverage) on every push and pull request.
+
 ---
 
 ## 🔍 Data Validation & Verification

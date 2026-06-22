@@ -1,4 +1,4 @@
-.PHONY: start stop build restart logs ps test lint clean
+.PHONY: start stop build restart logs ps test coverage lint clean
 
 VENV_BIN = .venv/bin
 JAVA_HOME ?= /opt/homebrew/opt/openjdk@17
@@ -24,10 +24,13 @@ ps:
 	./run.sh ps
 
 test:
-	$(VENV_BIN)/pytest tests/ -v --tb=short
+	$(VENV_BIN)/pytest tests/ -v
+
+coverage:
+	$(VENV_BIN)/pytest tests/ --cov --cov-report=term-missing --cov-report=html
 
 lint:
-	$(VENV_BIN)/ruff check scripts/ tests/
+	$(VENV_BIN)/ruff check scripts/ tests/ app/
 
 clean:
 	./run.sh down

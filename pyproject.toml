@@ -1,0 +1,37 @@
+[project]
+name = "kafka-spark-redis-streaming-etl"
+version = "1.0.0"
+description = "Real-time IoT streaming ETL: Kafka -> Spark Structured Streaming -> Redis TimeSeries -> Grafana, with a dead-letter queue and live data-quality + drift observability."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [{ name = "Theofanis Tsakanikas" }]
+keywords = ["kafka", "spark", "redis", "grafana", "streaming", "etl", "iot", "data-engineering"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+extend-exclude = [".venv", "app/.venv", "data"]
+
+[tool.ruff.lint]
+# Correctness (E/F/W), import sorting (I), bugbear (B), pyupgrade (UP),
+# comprehension hygiene (C4). A pragmatic, signal-rich set.
+select = ["E", "F", "W", "I", "B", "UP", "C4"]
+
+[tool.ruff.lint.per-file-ignores]
+# The Streamlit UI embeds long CSS/HTML string literals that don't benefit from wrapping.
+"app/streamlit_app.py" = ["E501"]
+
+[tool.pytest.ini_options]
+pythonpath = [".", "scripts", "app"]
+testpaths = ["tests"]
+addopts = "--tb=short"
+
+[tool.coverage.run]
+branch = true
+source = ["scripts", "app"]
+omit = ["app/streamlit_app.py"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = ["pragma: no cover", "if __name__ == .__main__.:", "raise NotImplementedError"]
