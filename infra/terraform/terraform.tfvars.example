@@ -1,0 +1,5 @@
+# Copy to terraform.tfvars (gitignored) only to override the defaults in
+# variables.tf. The defaults already match this project, so this is optional.
+project_id        = "realtime-telemetry-gcp"
+region            = "us-central1"
+github_repository = "theofanis-tsakanikas/realtime-telemetry-pipeline"

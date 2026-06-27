@@ -1,0 +1,69 @@
+name: Terraform (GCP)
+
+# - Pull requests touching infra/terraform → fmt + validate ONLY (no cloud
+#   credentials: `init -backend=false`), so the PR check holds no GCP access.
+# - Manual dispatch → keyless plan/apply via Workload Identity Federation.
+# The WIF provider + deployer SA below are Terraform OUTPUTS (identifiers, not secrets).
+
+on:
+  pull_request:
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "plan or apply"
+        type: choice
+        options: [plan, apply]
+        default: plan
+
+permissions:
+  contents: read
+  id-token: write # required for the OIDC token WIF exchanges (deploy job only)
+
+concurrency:
+  group: terraform-gcp
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false # no remote state, no GCP creds
+      - run: terraform validate
+
+  deploy:
+    # Privileged path — only on explicit manual dispatch, never on a PR.
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    env:
+      WORKLOAD_IDENTITY_PROVIDER: projects/64747416265/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+      DEPLOYER_SA: gha-deployer@realtime-telemetry-gcp.iam.gserviceaccount.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        name: Authenticate to GCP (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform init
+      - name: Plan
+        run: terraform plan -no-color
+      - name: Apply
+        if: inputs.action == 'apply'
+        run: terraform apply -auto-approve -no-color
