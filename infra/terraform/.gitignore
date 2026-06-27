@@ -1,0 +1,8 @@
+# State lives in GCS (remote backend) — nothing local to commit. Ignore the
+# working dir, any stray state, and real tfvars.
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+crash.log
+.secrets/
