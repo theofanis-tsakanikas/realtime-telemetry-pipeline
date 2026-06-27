@@ -1,6 +1,6 @@
 confluent-kafka==2.4.0
 pyspark==3.5.5
-redis==5.0.1
+redis==8.0.1
 faker==24.1.0
 python-dotenv==1.0.1
 # Back the Confluent Avro serializer + Schema Registry client (sensor_simulator).
