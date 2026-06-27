@@ -1,0 +1,90 @@
+# Provisioned alert rule: fire when any metric's drift z-score breaches the 3σ
+# control limit. This closes the observability loop — drift was already charted
+# in Grafana and written to Redis by the Spark job; now it actively notifies
+# instead of waiting for someone to read the dashboard.
+#
+# Query pipeline (Grafana server-side expressions):
+#   A  redis-datasource TS.MRANGE over the last 10m, FILTER kind=drift series=z
+#   B  math   abs($A)        — drift is two-sided; |z| is what matters
+#   C  reduce max(B)         — worst |z| in the window, per metric series
+#   D  threshold C > 3       — the alert condition (3σ)
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: data-quality
+    folder: Data Quality
+    interval: 1m
+    rules:
+      - uid: sensor-drift-zscore
+        title: Sensor metric drift (>3 sigma)
+        condition: D
+        for: 2m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+          team: data-quality
+        annotations:
+          summary: "A sensor metric has drifted beyond 3 sigma from its baseline"
+          description: >-
+            One or more metrics in sensor:*:drift z-score exceeded the 3 sigma
+            control limit over the last 10 minutes. A reading band can still look
+            valid while the whole distribution has shifted — check the
+            Drift — Z-Score per Metric panel and the affected sensor.
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: redis-iot
+            model:
+              refId: A
+              datasource:
+                type: redis-datasource
+                uid: redis-iot
+              type: timeSeries
+              command: ts.mrange
+              filter: kind=drift series=z
+              legend: "$metric"
+          - refId: B
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: math
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: abs($A)
+          - refId: C
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              reducer: max
+          - refId: D
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: __expr__
+            model:
+              refId: D
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: C
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [3]

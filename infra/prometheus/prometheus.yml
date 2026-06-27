@@ -1,0 +1,25 @@
+# Prometheus scrape config for the Spark Structured Streaming job.
+# The Spark UI (and its Prometheus endpoints) binds on port 4040 only after the first
+# micro-batch completes, so expect "connection refused" for the first ~20-30s — Prometheus
+# retries automatically and starts collecting once the driver is up.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Driver + application metrics via the PrometheusServlet sink (metrics.properties).
+  - job_name: spark-driver
+    metrics_path: /metrics/prometheus
+    static_configs:
+      - targets: ["spark-processor:4040"]
+
+  # Executor metrics via spark.ui.prometheus.enabled.
+  - job_name: spark-executors
+    metrics_path: /metrics/executors/prometheus
+    static_configs:
+      - targets: ["spark-processor:4040"]
+
+  # Prometheus scraping itself.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
