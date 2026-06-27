@@ -1,4 +1,8 @@
-FROM public.ecr.aws/bitnami/spark:3.5.5
+# Bitnami relocated their public catalog (2025 "Bitnami Secure Images" change), so
+# public.ecr.aws/bitnami/spark:3.5.5 and docker.io/bitnami/spark:3.5.5 no longer
+# resolve. The archived image lives under the bitnamilegacy/ namespace — a drop-in
+# replacement with the identical layout.
+FROM docker.io/bitnamilegacy/spark:3.5.5
 
 WORKDIR /app
 
