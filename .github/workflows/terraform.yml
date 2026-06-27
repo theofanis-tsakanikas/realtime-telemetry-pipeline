@@ -1,0 +1,59 @@
+name: Terraform (GCP)
+
+# Keyless deploy via Workload Identity Federation (no stored GCP keys):
+#   - Pull requests touching infra/terraform → fmt + validate + plan (read-only)
+#   - Manual dispatch with action=apply → terraform apply
+# The WIF provider + deployer SA below are Terraform OUTPUTS (identifiers, not secrets).
+
+on:
+  pull_request:
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "plan or apply"
+        type: choice
+        options: [plan, apply]
+        default: plan
+
+permissions:
+  contents: read
+  id-token: write # required for the OIDC token WIF exchanges
+
+concurrency:
+  group: terraform-gcp
+  cancel-in-progress: false
+
+env:
+  WORKLOAD_IDENTITY_PROVIDER: projects/64747416265/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+  DEPLOYER_SA: gha-deployer@realtime-telemetry-gcp.iam.gserviceaccount.com
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        name: Authenticate to GCP (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - run: terraform init
+      - run: terraform fmt -check
+      - run: terraform validate
+      - name: Plan
+        run: terraform plan -no-color
+
+      - name: Apply
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
+        run: terraform apply -auto-approve -no-color
