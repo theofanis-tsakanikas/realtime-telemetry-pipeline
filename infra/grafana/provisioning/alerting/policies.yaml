@@ -1,0 +1,16 @@
+# Notification routing. Drift alerts (labelled team=data-quality by the rule)
+# are routed to the Slack contact point; everything else falls through to the
+# same receiver so no alert is silently dropped.
+apiVersion: 1
+
+policies:
+  - orgId: 1
+    receiver: drift-slack
+    group_by: ["grafana_folder", "alertname"]
+    routes:
+      - receiver: drift-slack
+        object_matchers:
+          - ["team", "=", "data-quality"]
+        group_wait: 30s
+        group_interval: 1m
+        repeat_interval: 1h

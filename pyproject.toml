@@ -25,7 +25,12 @@ select = ["E", "F", "W", "I", "B", "UP", "C4"]
 [tool.pytest.ini_options]
 pythonpath = [".", "scripts", "app"]
 testpaths = ["tests"]
-addopts = "--tb=short"
+# Integration tests need Docker; deselect them by default so `make test` stays
+# container-free. Run them with: pytest -m integration
+addopts = "--tb=short -m 'not integration'"
+markers = [
+    "integration: end-to-end tests that require a Docker daemon (deselected by default)",
+]
 
 [tool.coverage.run]
 branch = true

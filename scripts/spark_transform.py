@@ -26,6 +26,7 @@ from drift import batch_drift, write_drift_metrics
 from metrics_spec import METRICS
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import avg, col, count, from_json, lit, struct, to_json, to_timestamp, when
+from pyspark.sql.functions import max as spark_max
 from pyspark.sql.types import DoubleType, StringType, StructField, StructType
 
 logging.basicConfig(
@@ -45,8 +46,20 @@ REDIS_PASSWORD = os.getenv("REDIS_PASSWORD") or None
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:9092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "sensor_data")
 DLQ_TOPIC = os.getenv("DLQ_TOPIC", "sensor_data_rejected")
+# Must match the simulator: "avro" reads Schema-Registry-framed Avro, "json" reads plain JSON.
+SERIALIZATION_FORMAT = os.getenv("SERIALIZATION_FORMAT", "avro").lower()
+
+# Spark packages: the Kafka connector always, plus spark-avro only when decoding Avro.
+SPARK_PACKAGES = "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.5"
+if SERIALIZATION_FORMAT == "avro":
+    SPARK_PACKAGES += ",org.apache.spark:spark-avro_2.12:3.5.5"
 CHECKPOINT_DIR = os.getenv("CHECKPOINT_DIR", "/tmp/spark-checkpoints/sensor_data")
 DLQ_CHECKPOINT_DIR = os.getenv("DLQ_CHECKPOINT_DIR", CHECKPOINT_DIR + "_dlq")
+
+# Event-time watermark: how long to wait for late/out-of-order readings before
+# their slot in streaming state can be dropped. Declares event-time semantics on
+# the cleaned stream and bounds state growth.
+WATERMARK_DELAY = os.getenv("WATERMARK_DELAY", "2 minutes")
 
 # 7-day retention for every TimeSeries key (milliseconds)
 RETENTION_MS = 604800000
@@ -62,6 +75,34 @@ schema = StructType([
     StructField("pressure", DoubleType(), True),
     StructField("timestamp", StringType(), True)
 ])
+
+
+def parse_stream(raw_df: DataFrame) -> DataFrame:
+    """Decode the Kafka ``value`` column into the typed sensor columns.
+
+    JSON: ``from_json`` against the static ``schema``. Avro: strip the Confluent 5-byte
+    header (magic byte + 4-byte schema id) with ``substring(value, 6, ...)``, then ``from_avro``
+    with the same writer schema the simulator registered (decoding is schema-id-independent
+    because reader and writer schemas are identical).
+    """
+    if SERIALIZATION_FORMAT == "json":
+        return (
+            raw_df.selectExpr("CAST(value AS STRING) as json_str")
+            .select(from_json(col("json_str"), schema).alias("data"))
+            .select("data.*")
+        )
+    if SERIALIZATION_FORMAT != "avro":
+        raise ValueError(f"Unsupported SERIALIZATION_FORMAT: {SERIALIZATION_FORMAT!r} (use 'avro' or 'json')")
+
+    from pyspark.sql.avro.functions import from_avro
+    from pyspark.sql.functions import expr
+    from sensor_avro import AVRO_SCHEMA
+
+    return (
+        raw_df.select(expr("substring(value, 6, length(value) - 5)").alias("avro_bytes"))
+        .select(from_avro(col("avro_bytes"), AVRO_SCHEMA).alias("data"))
+        .select("data.*")
+    )
 
 
 def redis_key(sensor_id: str, metric_name: str) -> str:
@@ -228,6 +269,20 @@ def write_to_redis(batch_df, batch_id: int) -> None:
     logger.info("Batch %s processed at %s", batch_id, datetime.now().isoformat())
 
 
+def batch_event_time_ms(clean_batch: DataFrame, *, fallback_ms: int | None = None) -> int:
+    """Return the latest *event time* in a cleaned batch, in epoch milliseconds.
+
+    Observability samples are stamped with the data's own event time (the newest reading in
+    the batch) rather than wall-clock processing time, so a replay or a backlog lands the
+    metrics where the data actually belongs on the timeline. Falls back to ``fallback_ms``
+    (or now) for an empty batch / one with no usable timestamps.
+    """
+    ts = clean_batch.agg(spark_max(col("timestamp")).alias("max_ts")).collect()[0]["max_ts"]
+    if ts is None:
+        return fallback_ms if fallback_ms is not None else int(datetime.now().timestamp() * 1000)
+    return timestamp_to_ms(ts)
+
+
 def _clean_batch_summaries(clean_batch: DataFrame) -> dict:
     """Per-metric ``(n, mean)`` over the valid rows of a batch, for drift scoring."""
     aggs = []
@@ -250,10 +305,12 @@ def write_observability(batch_df, batch_id: int) -> None:
     A third ``foreachBatch`` sink on the parsed stream. It never raises into the query:
     observability must not be able to take down ingestion, so all errors are logged.
     """
+    clean_batch = clean_data(batch_df).cache()
     try:
-        timestamp_ms = int(datetime.now().timestamp() * 1000)
+        # Stamp the sample with the batch's event time (newest reading), not wall-clock.
+        timestamp_ms = batch_event_time_ms(clean_batch)
         metrics = quality_metrics(batch_df, rejected_data)
-        drift = batch_drift(_clean_batch_summaries(clean_data(batch_df)))
+        drift = batch_drift(_clean_batch_summaries(clean_batch))
 
         r = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=0, password=REDIS_PASSWORD)
         pipe = r.pipeline(transaction=False)
@@ -268,6 +325,8 @@ def write_observability(batch_df, batch_id: int) -> None:
         )
     except Exception:
         logger.exception("Observability sink failed for batch %s (ingestion unaffected)", batch_id)
+    finally:
+        clean_batch.unpersist()
 
 
 def main() -> None:
@@ -282,7 +341,12 @@ def main() -> None:
         SparkSession.builder
         .appName("SensorDataTransformer")
         .master("local[*]")
-        .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.5")
+        .config("spark.jars.packages", SPARK_PACKAGES)
+        # Prometheus observability of the pipeline itself (scraped from port 4040):
+        # executor metrics, per-streaming-query metrics, and the servlet sink config.
+        .config("spark.ui.prometheus.enabled", "true")
+        .config("spark.sql.streaming.metricsEnabled", "true")
+        .config("spark.metrics.conf", os.getenv("SPARK_METRICS_CONF", "/opt/spark-conf/metrics.properties"))
         .getOrCreate()
     )
 
@@ -299,16 +363,17 @@ def main() -> None:
         .load()
     )
 
-    # 2. Parse JSON
-    parsed_df = (
-        raw_df.selectExpr("CAST(value AS STRING) as json_str")
-        .select(from_json(col("json_str"), schema).alias("data"))
-        .select("data.*")
-    )
+    # 2. Decode the payload (JSON or Schema-Registry Avro) into typed columns.
+    parsed_df = parse_stream(raw_df)
 
-    # 3a. Valid branch → RedisTimeSeries
+    # 3a. Valid branch → RedisTimeSeries.
+    # withWatermark declares event-time semantics on the cleaned stream: readings
+    # later than WATERMARK_DELAY behind the max seen event time are considered too
+    # late, and streaming state is bounded accordingly.
     redis_query = (
-        clean_data(parsed_df).writeStream
+        clean_data(parsed_df)
+        .withWatermark("timestamp", WATERMARK_DELAY)
+        .writeStream
         .foreachBatch(write_to_redis)
         .option("checkpointLocation", CHECKPOINT_DIR)
         .outputMode("update")

@@ -20,6 +20,9 @@ services:
       KAFKA_ADVERTISED_LISTENERS: LISTENER_INTERNAL://kafka-broker:9092,LISTENER_EXTERNAL://localhost:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTENER_INTERNAL:PLAINTEXT,LISTENER_EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: LISTENER_INTERNAL
+      # replication-factor=1 / min-ISR=1 fit a single-node demo broker. Production
+      # wants >=3 brokers with replication-factor=3 and min.insync.replicas=2 — see
+      # the "High availability" row of Production Considerations in README.md.
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -30,6 +33,28 @@ services:
       timeout: 10s
       retries: 10
       start_period: 20s
+    networks:
+      - stream-net
+
+  # === 🗂️ 1b. SCHEMA REGISTRY (Confluent) ===
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.7.1
+    container_name: schema-registry
+    depends_on:
+      kafka-broker:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka-broker:9092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/subjects >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     networks:
       - stream-net
 
@@ -63,6 +88,9 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       # Consumed by the provisioned Redis datasource (secureJsonData).
       - REDIS_PASSWORD=${REDIS_PASSWORD:-iot-streaming-demo}
+      # Slack Incoming Webhook for the provisioned drift alert (Grafana → #telemetry-alerts).
+      # Empty by default so the stack boots without a receiver; set SLACK_WEBHOOK_URL in .env.
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/dashboards:/var/lib/grafana/dashboards
@@ -81,9 +109,13 @@ services:
     depends_on:
       kafka-broker:
         condition: service_healthy
+      schema-registry:
+        condition: service_healthy
     environment:
       - KAFKA_BROKER=kafka-broker:9092 # Internal Docker network address
       - KAFKA_PARTITIONS=${KAFKA_PARTITIONS:-3}
+      - SERIALIZATION_FORMAT=${SERIALIZATION_FORMAT:-avro}
+      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
     networks:
       - stream-net
 
@@ -98,6 +130,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      schema-registry:
+        condition: service_healthy
     ports:
       - "4040:4040"
     environment:
@@ -105,10 +139,14 @@ services:
       - REDIS_HOST=redis
       - REDIS_PASSWORD=${REDIS_PASSWORD:-iot-streaming-demo}
       - CHECKPOINT_DIR=/data/checkpoints/sensor_data
+      - SERIALIZATION_FORMAT=${SERIALIZATION_FORMAT:-avro}
+      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
     volumes:
       # Persist streaming checkpoints on the host so exactly-once state
       # survives container rebuilds.
       - ../data/checkpoints:/data/checkpoints
+      # Prometheus metrics sink config (read by spark.metrics.conf).
+      - ./spark/metrics.properties:/opt/spark-conf/metrics.properties:ro
     networks:
       - stream-net
 
@@ -121,8 +159,12 @@ services:
     environment:
       KAFKA_CLUSTERS_0_NAME: local-cluster
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-broker:9092
+      # Lets Kafka-UI decode Avro messages and browse registered schemas.
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
     depends_on:
       kafka-broker:
+        condition: service_healthy
+      schema-registry:
         condition: service_healthy
     networks:
       - stream-net
@@ -133,6 +175,19 @@ services:
     container_name: redis-insight
     ports:
       - "5540:5540"
+    networks:
+      - stream-net
+
+  # === 📟 8. PROMETHEUS (Spark pipeline metrics) ===
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - spark-processor
     networks:
       - stream-net
 

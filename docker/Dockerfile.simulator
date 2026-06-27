@@ -10,7 +10,9 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY scripts/sensor_simulator.py ./scripts/
+# Copy the whole scripts package: the simulator imports sensor_avro (and, in Avro
+# mode, serialises through it), so the entrypoint is not self-contained.
+COPY scripts/ ./scripts/
 
 # Configuration is injected via docker-compose `environment:` — the .env file
 # is never baked into the image.

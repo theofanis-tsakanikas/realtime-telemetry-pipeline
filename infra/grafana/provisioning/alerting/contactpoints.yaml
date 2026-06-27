@@ -1,0 +1,16 @@
+# Grafana unified-alerting contact point — native Slack integration (provisioned).
+# Uses a Slack Incoming Webhook URL read from the SLACK_WEBHOOK_URL env var passed
+# to the Grafana container (see docker-compose.yml). The `slack` type formats the
+# alert nicely in Slack (title, color, fields) instead of a raw JSON webhook body.
+# If SLACK_WEBHOOK_URL is unset the receiver still provisions; it just won't deliver.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: drift-slack
+    receivers:
+      - uid: drift-slack-receiver
+        type: slack
+        settings:
+          url: $SLACK_WEBHOOK_URL
+        disableResolveMessage: false
