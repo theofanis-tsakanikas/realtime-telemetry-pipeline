@@ -52,9 +52,14 @@ resource "google_service_account_iam_member" "wif_user" {
 # Permissions the deployer needs to manage this config (Redis VM in Phase 2).
 # Scoped to what the stack actually creates; tighten further per-resource later.
 locals {
+  # Minimal roles for the deployer to manage the app infra (VM/network/secrets) on a
+  # manual `apply` dispatch. The CI *PR* check never assumes this SA — it only runs
+  # fmt + validate with no backend, so it needs no cloud access at all (no escalation).
+  # Granting broader IAM/WIF admin (for a CI-driven apply of the foundation itself) is a
+  # deliberate, owner-only step, intentionally kept out of the automated path.
   deployer_roles = [
-    "roles/compute.admin",          # the Redis VM, VPC, firewall, IAP
-    "roles/secretmanager.admin",    # the Redis password secret
+    "roles/compute.admin",          # the VM, VPC, firewall, NAT, IAP
+    "roles/secretmanager.admin",    # the Redis/Slack/Grafana/deploy-key secrets
     "roles/storage.admin",          # read/write the remote state bucket
     "roles/iam.serviceAccountUser", # attach a service account to the VM
   ]
