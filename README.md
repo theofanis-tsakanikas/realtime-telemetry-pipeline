@@ -327,6 +327,47 @@ already — what changes for production is the **infrastructure around them**, n
 
 ---
 
+## ☁️ Cloud Deployment (GCP, Terraform)
+
+The whole stack can also run **in the cloud on GCP**, provisioned entirely with **Terraform** —
+the portfolio's *second cloud* (the companion [`s3-spark-pg-etl`](https://github.com/theofanis-tsakanikas)
+project provisions **AWS**). Same keyless-OIDC philosophy, different provider.
+
+It is designed to be **ephemeral**: spin it up for a demo/recording, then tear it down — you
+pay only for the hours it runs (~$0.13/hr on an `e2-standard-4` in Frankfurt; **$0** destroyed,
+~cents/night paused).
+
+**What Terraform creates** ([`infra/terraform/`](infra/terraform/)):
+
+| Group | Resources |
+|---|---|
+| **Identity** | Workload Identity Federation — GitHub Actions deploys with **no stored keys**, locked to this repo |
+| **Network** | Custom VPC, **no public ingress** (IAP-only access), Cloud NAT for outbound |
+| **Secrets** | Secret Manager (Redis / Slack / Grafana / read-only repo deploy key) — values never in git or tfstate |
+| **Compute** | A single VM that, on boot, clones the repo (SSH deploy key) and runs the full Docker stack |
+
+**Lifecycle (Makefile front door):**
+
+```bash
+make cloud-up        # terraform apply: infra + the VM boots and starts the whole stack
+make cloud-secrets   # push .env secrets into Secret Manager
+make cloud-tunnels   # IAP tunnels → http://localhost:3000 (Grafana), :8085, :9090, ...
+make cloud-pause     # stop the VM overnight (no compute charge; data kept)
+make cloud-resume    # resume next day; the stack comes back automatically
+make cloud-down      # destroy everything → $0
+```
+
+**Cost discipline by design:** no public IPs (IAP-only, identity-based access), secrets in
+Secret Manager, a safety auto-stop if you forget to pause, and one-command teardown. The state
+bucket is a manually-created, protected "seed" — kept *outside* Terraform so Terraform can never
+destroy its own backend. See [`infra/terraform/README.md`](infra/terraform/README.md).
+
+> In production you'd decompose this single VM into managed services (Confluent Cloud,
+> Dataproc/GKE, Redis Enterprise). The single-VM Docker Compose deployment is a deliberate,
+> cost-efficient choice for an ephemeral demo.
+
+---
+
 ## 📜 License
 
 This project is licensed under the LICENSE file.
