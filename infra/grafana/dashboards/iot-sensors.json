@@ -67,7 +67,7 @@
             "type": "redis-datasource",
             "uid": "redis-iot"
           },
-          "filter": "metric=temperature",
+          "filter": "metric=temperature kind!=drift",
           "legend": "sensor_id",
           "query": "",
           "refId": "A",
@@ -350,7 +350,7 @@
             "type": "redis-datasource",
             "uid": "redis-iot"
           },
-          "filter": "metric=humidity",
+          "filter": "metric=humidity kind!=drift",
           "legend": "sensor_id",
           "query": "",
           "refId": "A",
@@ -383,11 +383,11 @@
               },
               {
                 "color": "orange",
-                "value": 0.8
+                "value": 0.5
               },
               {
                 "color": "green",
-                "value": 0.95
+                "value": 0.75
               }
             ]
           }

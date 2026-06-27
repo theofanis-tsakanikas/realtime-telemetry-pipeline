@@ -1,13 +1,9 @@
-# Provisioned alert rule: fire when any metric's drift z-score breaches the 3σ
-# control limit. This closes the observability loop — drift was already charted
-# in Grafana and written to Redis by the Spark job; now it actively notifies
-# instead of waiting for someone to read the dashboard.
+# Provisioned drift alerts — one rule PER metric, each querying a single drift z-score
+# series (TS.RANGE drift:<metric>:z). Single-series queries avoid the multi-frame label
+# collision that a TS.MRANGE-of-all-metrics produces in Grafana's expression engine.
 #
-# Query pipeline (Grafana server-side expressions):
-#   A  redis-datasource TS.MRANGE over the last 10m, FILTER kind=drift series=z
-#   B  math   abs($A)        — drift is two-sided; |z| is what matters
-#   C  reduce max(B)         — worst |z| in the window, per metric series
-#   D  threshold C > 3       — the alert condition (3σ)
+# Per rule:  A  TS.RANGE drift:<metric>:z   →  B math abs($A)  →  C reduce last(B)  →
+#            D threshold C > 3   (the 3 sigma control limit). Routed to Slack via team label.
 apiVersion: 1
 
 groups:
@@ -16,75 +12,110 @@ groups:
     folder: Data Quality
     interval: 1m
     rules:
-      - uid: sensor-drift-zscore
-        title: Sensor metric drift (>3 sigma)
+      - uid: drift-temperature
+        title: Temperature drift (>3 sigma)
         condition: D
-        for: 2m
+        for: 1m
         noDataState: OK
         execErrState: Error
-        labels:
-          severity: warning
-          team: data-quality
+        labels: { severity: warning, team: data-quality }
         annotations:
-          summary: "A sensor metric has drifted beyond 3 sigma from its baseline"
-          description: >-
-            One or more metrics in sensor:*:drift z-score exceeded the 3 sigma
-            control limit over the last 10 minutes. A reading band can still look
-            valid while the whole distribution has shifted — check the
-            Drift — Z-Score per Metric panel and the affected sensor.
+          summary: "Temperature has drifted beyond 3 sigma from its baseline"
+          description: "drift:temperature:z exceeded the 3 sigma control limit — the reading distribution shifted even though individual values may still be in range."
         data:
           - refId: A
-            relativeTimeRange:
-              from: 600
-              to: 0
+            relativeTimeRange: { from: 600, to: 0 }
             datasourceUid: redis-iot
             model:
               refId: A
-              datasource:
-                type: redis-datasource
-                uid: redis-iot
+              datasource: { type: redis-datasource, uid: redis-iot }
               type: timeSeries
-              command: ts.mrange
-              filter: kind=drift series=z
-              legend: "$metric"
+              command: ts.range
+              keyName: drift:temperature:z
           - refId: B
-            relativeTimeRange:
-              from: 600
-              to: 0
             datasourceUid: __expr__
-            model:
-              refId: B
-              type: math
-              datasource:
-                type: __expr__
-                uid: __expr__
-              expression: abs($A)
+            model: { refId: B, type: math, datasource: { type: __expr__, uid: __expr__ }, expression: "abs($A)" }
           - refId: C
-            relativeTimeRange:
-              from: 600
-              to: 0
             datasourceUid: __expr__
-            model:
-              refId: C
-              type: reduce
-              datasource:
-                type: __expr__
-                uid: __expr__
-              expression: B
-              reducer: max
+            model: { refId: C, type: reduce, datasource: { type: __expr__, uid: __expr__ }, expression: B, reducer: last }
           - refId: D
-            relativeTimeRange:
-              from: 600
-              to: 0
             datasourceUid: __expr__
             model:
               refId: D
               type: threshold
-              datasource:
-                type: __expr__
-                uid: __expr__
+              datasource: { type: __expr__, uid: __expr__ }
               expression: C
               conditions:
-                - evaluator:
-                    type: gt
-                    params: [3]
+                - evaluator: { type: gt, params: [3] }
+
+      - uid: drift-humidity
+        title: Humidity drift (>3 sigma)
+        condition: D
+        for: 1m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: warning, team: data-quality }
+        annotations:
+          summary: "Humidity has drifted beyond 3 sigma from its baseline"
+          description: "drift:humidity:z exceeded the 3 sigma control limit."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: redis-iot
+            model:
+              refId: A
+              datasource: { type: redis-datasource, uid: redis-iot }
+              type: timeSeries
+              command: ts.range
+              keyName: drift:humidity:z
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: math, datasource: { type: __expr__, uid: __expr__ }, expression: "abs($A)" }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: reduce, datasource: { type: __expr__, uid: __expr__ }, expression: B, reducer: last }
+          - refId: D
+            datasourceUid: __expr__
+            model:
+              refId: D
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: C
+              conditions:
+                - evaluator: { type: gt, params: [3] }
+
+      - uid: drift-pressure
+        title: Pressure drift (>3 sigma)
+        condition: D
+        for: 1m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: warning, team: data-quality }
+        annotations:
+          summary: "Pressure has drifted beyond 3 sigma from its baseline"
+          description: "drift:pressure:z exceeded the 3 sigma control limit."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: redis-iot
+            model:
+              refId: A
+              datasource: { type: redis-datasource, uid: redis-iot }
+              type: timeSeries
+              command: ts.range
+              keyName: drift:pressure:z
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: math, datasource: { type: __expr__, uid: __expr__ }, expression: "abs($A)" }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: reduce, datasource: { type: __expr__, uid: __expr__ }, expression: B, reducer: last }
+          - refId: D
+            datasourceUid: __expr__
+            model:
+              refId: D
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: C
+              conditions:
+                - evaluator: { type: gt, params: [3] }
