@@ -13,7 +13,7 @@ jobs:
     name: secret scan (full history)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0          # scan the entire git history, not just HEAD
       - name: gitleaks
