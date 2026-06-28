@@ -70,31 +70,40 @@ jobs:
     if: github.event_name == 'pull_request'
     needs: validate
     runs-on: ubuntu-latest
-    continue-on-error: true
     defaults:
       run:
         working-directory: infra/terraform/app
     steps:
       - uses: actions/checkout@v4
-      - uses: google-github-actions/auth@v2
+      - id: auth
+        continue-on-error: true # foundation (WIF) may not be applied yet
+        uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ env.DEPLOYER_SA }}
       - uses: hashicorp/setup-terraform@v3
-      - run: terraform init
-      - id: plan
-        run: terraform plan -no-color -input=false
+      - id: init
+        if: steps.auth.outcome == 'success'
         continue-on-error: true
+        run: terraform init
+      - id: plan
+        if: steps.init.outcome == 'success'
+        continue-on-error: true
+        run: terraform plan -no-color -input=false
       - uses: actions/github-script@v7
+        if: always()
+        env:
+          PLAN: ${{ steps.plan.outputs.stdout }}
+          OUTCOME: ${{ steps.plan.outcome }}
         with:
           script: |
-            const out = `#### Terraform plan (app layer) \`${{ steps.plan.outcome }}\`
-            \`\`\`
-            ${{ steps.plan.outputs.stdout || 'plan unavailable (foundation not yet applied)' }}
-            \`\`\``.slice(0, 65000)
-            github.rest.issues.createComment({
+            const ok = process.env.OUTCOME === 'success';
+            const body = ok
+              ? "#### Terraform plan — app layer ✅\n```\n" + (process.env.PLAN || '').slice(0, 64000) + "\n```"
+              : "#### Terraform plan — app layer ⏭️ skipped (foundation not applied yet / no creds on this PR)";
+            await github.rest.issues.createComment({
               issue_number: context.issue.number, owner: context.repo.owner,
-              repo: context.repo.repo, body: out })
+              repo: context.repo.repo, body });
 
   # Privileged app-layer apply/destroy — ONLY on manual dispatch, behind the
   # `production` environment (add required reviewers in repo settings for an approval gate).
