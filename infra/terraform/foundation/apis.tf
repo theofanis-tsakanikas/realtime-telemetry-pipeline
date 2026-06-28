@@ -15,6 +15,8 @@ locals {
     "container.googleapis.com",            # GKE Autopilot cluster (the stack runtime)
     "artifactregistry.googleapis.com",     # Docker registry for the stack images
     "monitoring.googleapis.com",           # Managed Service for Prometheus (GMP)
+    "gkehub.googleapis.com",               # fleet membership (Connect Gateway)
+    "connectgateway.googleapis.com",       # keyless kubectl from CI via the gateway
   ]
 }
 
