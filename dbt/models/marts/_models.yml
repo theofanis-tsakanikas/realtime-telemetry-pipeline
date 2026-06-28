@@ -1,0 +1,54 @@
+version: 2
+
+models:
+  - name: sensor_minutely
+    description: >
+      Per-sensor, per-minute readings rollup (last 24h). Grain (sensor_id, minute) —
+      composite uniqueness asserted by tests/assert_sensor_minutely_grain_unique.sql.
+    columns:
+      - name: sensor_id
+        tests: [not_null]
+      - name: minute
+        tests: [not_null]
+      - name: reading_count
+        tests: [not_null]
+
+  - name: reading_volume
+    description: Fleet-wide readings/min and active sensor count (last 6h). Grain minute.
+    columns:
+      - name: minute
+        tests: [not_null, unique]
+      - name: reading_count
+        tests: [not_null]
+      - name: active_sensors
+        tests: [not_null]
+
+  - name: rejections_by_reason
+    description: Rejected rows per minute by violated rule (last 24h). Grain (minute, reason).
+    columns:
+      - name: minute
+        tests: [not_null]
+      - name: rejection_reason
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - missing_sensor_id
+                - missing_temperature
+                - invalid_humidity
+                - missing_pressure
+                - missing_timestamp
+                - temperature_out_of_range
+                - humidity_out_of_range
+                - pressure_out_of_range
+      - name: rejection_count
+        tests: [not_null]
+
+  - name: accept_rate_minutely
+    description: Accepted/rejected counts + accept rate per minute (last 24h). Grain minute.
+    columns:
+      - name: minute
+        tests: [not_null, unique]
+      - name: accept_rate
+        # 0..1 range is asserted by tests/assert_accept_rate_in_range.sql
+        tests: [not_null]
