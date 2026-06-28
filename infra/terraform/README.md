@@ -1,56 +1,60 @@
-# Terraform (GCP) — ephemeral full-stack deployment
+# Terraform (GCP) — two layers
 
-Provisions the **entire pipeline** on GCP (Frankfurt) on a single VM, with **remote state**,
-**keyless GitHub Actions deploys** (Workload Identity Federation), and **no public ingress**
-(IAP-only). Designed to be spun up for a demo/recording and torn down after — pay only for the
-hours it runs (~$0.13/hr, e2-standard-4).
+The infrastructure is split into two independently-stated layers, so the CI deployer can
+manage the app with **least privilege** and **never touches its own auth foundation**.
 
-This is the portfolio's **second cloud** (the first project provisions AWS) — same keyless/OIDC
-philosophy, different provider.
+```
+infra/terraform/
+├── foundation/   # Layer 0 — run ONCE by the owner (seed). Persists.
+│                 #   WIF + deployer SA + runtime SA + Secret Manager containers + scoped IAM
+└── app/          # Layer 1 — routine spin-up / tear-down (CLI or CI).
+                  #   VPC + firewall (IAP-only) + Cloud NAT + the stack VM
+```
 
-## One-time seed (done once, by hand)
+State lives in the manually-seeded GCS bucket `realtime-telemetry-gcp-tfstate` (prefixes
+`foundation` and `app`). The bucket is kept **outside** Terraform on purpose.
 
-The state bucket is kept **outside** Terraform on purpose (Terraform must never be able to
-destroy the store holding its own state):
+## One-time setup (owner)
 
 ```bash
+# 0. Seed bucket (once)
 gcloud storage buckets create gs://realtime-telemetry-gcp-tfstate \
   --project=realtime-telemetry-gcp --location=europe-west3 \
   --uniform-bucket-level-access --public-access-prevention
 gcloud storage buckets update gs://realtime-telemetry-gcp-tfstate --versioning
+
+# 1. Foundation: identity + secret containers + runtime SA
+make cloud-foundation-up
+
+# 2. Seed secret VALUES once (from your .env). They persist across every app deploy.
+make cloud-seed-secrets
 ```
 
-## What it creates
-
-| Group | Resources |
-|---|---|
-| **Foundation** | API enablement, Workload Identity Federation (pool/provider/deployer SA) |
-| **Network** | custom VPC + subnet, IAP-only firewall (no public ingress), Cloud NAT (outbound) |
-| **Secrets** | Secret Manager containers (Redis / Slack / Grafana) — values pushed out-of-band |
-| **Compute** | e2-standard-4 VM (no external IP) + runtime SA; startup script runs the full stack |
-
-## Daily workflow
+## Routine lifecycle (app layer — CLI or CI)
 
 ```bash
-make cloud-up        # terraform apply: infra + VM boots and starts the stack
-make cloud-secrets   # push .env secrets into Secret Manager (VM waits ~10 min for them)
-make cloud-tunnels   # open IAP tunnels → http://localhost:3000 (Grafana), :8085, :9090, ...
-
-make cloud-pause     # end of day: stop the VM (no compute charge, data kept)
-make cloud-resume    # next day: start it; the stack auto-resumes
-
-make cloud-down      # fully done: destroy everything → $0
+make cloud-plan      # preview
+make cloud-up        # deploy app: network + VM → boots the stack   (no secret re-push!)
+make cloud-tunnels   # IAP tunnels → http://localhost:3300 (Grafana), :8085, :9090, ...
+make cloud-pause     # stop the VM overnight (data kept)
+make cloud-resume
+make cloud-down      # destroy the app layer → ~$0 (foundation + secrets stay)
 ```
 
-## Cost & safety
+Because the **secrets are a seed** (Layer 0), an app deploy is genuinely **one step** —
+`make cloud-up` references the already-seeded secrets; nothing to re-push.
 
-- **~$0.13/hr** running (~$1 per working day); **~$0.05/night** when paused (disk only); **$0** after destroy.
-- The VM **auto-stops after `auto_stop_minutes`** (default 8h) as a safety net if you forget to pause.
-- No external IP, IAP-only access; secrets live in Secret Manager (never in git or tfstate).
+## Why two layers (the professional reasons)
 
-## Notes
+- **Least privilege:** the `gha-deployer` SA only gets `compute.admin` + `serviceAccountUser`
+  + state-bucket object access — exactly what the app layer needs. No IAM/WIF/secret admin.
+- **No self-reference:** the deployer never manages the WIF/SA that authenticate it, so CI can
+  apply/destroy the app layer cleanly (and via a GitHub Actions button) without destroying its
+  own identity.
+- **Secrets out of the deploy lifecycle:** seeded once, never re-pushed, never in git/tfstate.
 
-- In production you'd decompose this single VM into managed services (Confluent Cloud,
-  Dataproc/GKE, Memorystore/Redis Enterprise). The single-VM Docker Compose deployment is a
-  deliberate, cost-efficient choice for an ephemeral demo — see the main README.
-- Credentials: `gcloud auth application-default login` locally, or WIF in CI.
+## Production note
+
+The app layer is a single VM running Docker Compose — a deliberate, cost-efficient choice for an
+ephemeral demo. In production you'd decompose it into managed services (Confluent Cloud,
+Dataproc/GKE, Redis Enterprise) and build images in CI → Artifact Registry. See the main README.

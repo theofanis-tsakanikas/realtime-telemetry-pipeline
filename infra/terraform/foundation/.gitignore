@@ -1,0 +1,6 @@
+# State lives in GCS (remote backend). Ignore the working dir + any stray state.
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+crash.log
