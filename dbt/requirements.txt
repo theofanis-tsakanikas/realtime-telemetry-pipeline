@@ -1,0 +1,4 @@
+# dbt with the BigQuery adapter. Core pinned alongside the adapter so the project
+# parses identically everywhere (the adapter alone floats dbt-core to its latest).
+dbt-core==1.9.1
+dbt-bigquery==1.9.1
