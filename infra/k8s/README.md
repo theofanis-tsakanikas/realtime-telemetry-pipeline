@@ -76,6 +76,9 @@ kubectl -n telemetry port-forward svc/spark-processor 4040:4040  # Spark UI
 - **Spark → BigQuery is ON here** (`BIGQUERY_DATASET=telemetry`), unlike compose.
   Valid rows go to Redis *and* BigQuery; rejected rows to the DLQ topic *and* the
   BigQuery `rejections` table.
-- The Grafana **Prometheus** datasource is wired to GKE Managed Service for
-  Prometheus in Phase E (the `prometheus:9090` URL is a no-op until then; the
-  Redis-backed panels work immediately).
+- **System metrics via GMP.** A `PodMonitoring` (in `gmp/`) makes GKE Managed
+  Service for Prometheus scrape the Spark driver's `/metrics/prometheus`. An
+  in-cluster GMP **query frontend** is exposed as a Service named `prometheus`
+  on 9090 — the same name/port the shared Grafana datasource uses — so the
+  Pipeline Health dashboard works on GKE with no datasource change. The frontend
+  reads Cloud Monitoring via Workload Identity (runtime GSA has `monitoring.viewer`).
