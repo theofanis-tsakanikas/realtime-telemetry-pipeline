@@ -2,7 +2,7 @@
         dbt-setup dbt-parse dbt-run dbt-test dbt-build \
         k8s-images k8s-render k8s-apply k8s-delete \
         cloud-foundation-up cloud-seed-secrets cloud-foundation-down \
-        cloud-plan cloud-up cloud-pause cloud-resume cloud-tunnels cloud-down
+        cloud-plan cloud-up cloud-down
 
 VENV_BIN = .venv/bin
 JAVA_HOME ?= /opt/homebrew/opt/openjdk@17
@@ -13,8 +13,6 @@ export PATH := $(JAVA_HOME)/bin:$(PATH)
 TF_DIR         = infra/terraform
 FOUNDATION_DIR = $(TF_DIR)/foundation
 APP_DIR        = $(TF_DIR)/app
-VM_NAME        = telemetry-stack
-VM_ZONE        = europe-west3-a
 
 start:
 	./run.sh up
@@ -105,17 +103,8 @@ cloud-foundation-down: ## Tear down the foundation too (only when fully decommis
 cloud-plan:        ## Preview the app-layer changes
 	cd $(APP_DIR) && terraform plan
 
-cloud-up:          ## Deploy the app layer (network + VM); boots the stack
+cloud-up:          ## Deploy the app layer (VPC + NAT + GKE Autopilot cluster)
 	cd $(APP_DIR) && terraform apply
 
-cloud-pause:       ## Stop the VM (no compute charge; data + config preserved)
-	gcloud compute instances stop $(VM_NAME) --zone=$(VM_ZONE)
-
-cloud-resume:      ## Start the VM again; the stack auto-resumes
-	gcloud compute instances start $(VM_NAME) --zone=$(VM_ZONE)
-
-cloud-tunnels:     ## Open IAP tunnels to the dashboards (Grafana, Kafka-UI, ...)
-	./$(TF_DIR)/iap-tunnels.sh $(VM_NAME) $(VM_ZONE)
-
-cloud-down:        ## Destroy the app layer (foundation + secrets persist) → ~$0
+cloud-down:        ## Destroy the app layer (foundation + BigQuery + secrets persist) → ~$0
 	cd $(APP_DIR) && terraform destroy
