@@ -1,0 +1,23 @@
+name: "telemetry"
+version: "1.0.0"
+config-version: 2
+
+# Connection profile (see profiles.yml in this directory; selected via
+# DBT_PROFILES_DIR=. so the project is self-contained and needs nothing in ~/.dbt).
+profile: "telemetry"
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  telemetry:
+    # Staging = thin, renamed views over the raw Spark-written tables (cheap, always fresh).
+    staging:
+      +materialized: view
+    # Marts = short-window aggregations materialized as tables for fast BI reads
+    # (Looker Studio / Grafana). Re-run on a schedule to refresh the rolling windows.
+    marts:
+      +materialized: table

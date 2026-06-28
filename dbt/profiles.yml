@@ -1,0 +1,20 @@
+# Self-contained profile. Run dbt from this directory with DBT_PROFILES_DIR=.
+# (the Makefile/README do this), so nothing needs to live in ~/.dbt.
+#
+# Auth = OAuth / Application Default Credentials: locally `gcloud auth
+# application-default login`, on the VM/GKE the attached runtime service account
+# (telemetry-stack-vm@...) which already holds bigquery.dataEditor + jobUser.
+# No service-account key files anywhere.
+telemetry:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT', 'realtime-telemetry-gcp') }}"
+      dataset: "{{ env_var('BIGQUERY_DATASET', 'telemetry') }}"
+      location: "{{ env_var('BIGQUERY_LOCATION', 'europe-west3') }}"
+      threads: 4
+      priority: interactive
+      job_execution_timeout_seconds: 300
+      job_retries: 1

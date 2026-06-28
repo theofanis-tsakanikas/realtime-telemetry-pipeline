@@ -1,0 +1,28 @@
+version: 2
+
+sources:
+  - name: telemetry
+    description: >
+      Raw tables written by the Spark Structured Streaming job via the BigQuery
+      Storage Write API. `readings` = the cleaned, in-range valid branch;
+      `rejections` = the dead-letter branch tagged with the rule it violated.
+    database: "{{ env_var('GCP_PROJECT', 'realtime-telemetry-gcp') }}"
+    schema: "{{ env_var('BIGQUERY_DATASET', 'telemetry') }}"
+    tables:
+      - name: readings
+        description: Cleaned sensor readings (valid branch), one row per accepted message.
+        loaded_at_field: ingest_time
+        freshness:
+          warn_after: { count: 10, period: minute }
+          error_after: { count: 60, period: minute }
+        columns:
+          - name: sensor_id
+            tests: [not_null]
+          - name: event_time
+            tests: [not_null]
+      - name: rejections
+        description: Rejected rows with the contract rule they violated (DLQ analytics).
+        loaded_at_field: ingest_time
+        columns:
+          - name: rejection_reason
+            tests: [not_null]

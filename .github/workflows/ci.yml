@@ -48,3 +48,32 @@ jobs:
 
       - name: Validate docker-compose configuration
         run: docker compose -f infra/docker-compose.yml config --quiet
+
+  dbt-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-dbt-${{ hashFiles('dbt/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-dbt-
+
+      - name: Install dbt
+        run: pip install -r dbt/requirements.txt
+
+      # Offline parse: validates refs, sources, SQL templating and test config
+      # without a BigQuery connection (env_var fallbacks resolve project/dataset).
+      - name: dbt parse
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: "."
+        run: dbt parse

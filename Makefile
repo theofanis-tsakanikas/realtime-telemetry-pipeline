@@ -1,4 +1,5 @@
 .PHONY: start stop build restart logs ps test coverage lint clean \
+        dbt-setup dbt-parse dbt-run dbt-test dbt-build \
         cloud-foundation-up cloud-seed-secrets cloud-foundation-down \
         cloud-plan cloud-up cloud-pause cloud-resume cloud-tunnels cloud-down
 
@@ -45,6 +46,26 @@ clean:
 	./run.sh down
 	find data/checkpoints -mindepth 1 -type f -not -name '.gitkeep' -delete 2>/dev/null || true
 	find data/logs -mindepth 1 -type f -not -name '.gitkeep' -delete 2>/dev/null || true
+
+# === dbt — BigQuery analytics marts (own venv; pins clash with pyspark) ========
+DBT_DIR  = dbt
+DBT_VENV = .venv-dbt
+DBT      = cd $(DBT_DIR) && DBT_PROFILES_DIR=. ../$(DBT_VENV)/bin/dbt
+
+dbt-setup:  ## Create the dbt venv and install dbt-bigquery (run once)
+	python3 -m venv $(DBT_VENV) && $(DBT_VENV)/bin/pip install -U pip -r $(DBT_DIR)/requirements.txt
+
+dbt-parse:  ## Offline validation of the dbt project (no warehouse, no creds)
+	$(DBT) parse
+
+dbt-run:    ## Build the staging views + marts in BigQuery (needs ADC)
+	$(DBT) run
+
+dbt-test:   ## Run the dbt data tests against the built marts
+	$(DBT) test
+
+dbt-build:  ## run + test in dependency order (the usual refresh command)
+	$(DBT) build
 
 # === Cloud — Layer 0 (foundation): run ONCE at setup, by the owner ===========
 cloud-foundation-up:   ## Create WIF + deployer SA + runtime SA + secret containers (seed)
