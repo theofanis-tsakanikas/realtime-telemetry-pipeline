@@ -1,15 +1,18 @@
 .PHONY: start stop build restart logs ps test coverage lint clean \
-        cloud-plan cloud-up cloud-secrets cloud-pause cloud-resume cloud-tunnels cloud-down
+        cloud-foundation-up cloud-seed-secrets cloud-foundation-down \
+        cloud-plan cloud-up cloud-pause cloud-resume cloud-tunnels cloud-down
 
 VENV_BIN = .venv/bin
 JAVA_HOME ?= /opt/homebrew/opt/openjdk@17
 export JAVA_HOME
 export PATH := $(JAVA_HOME)/bin:$(PATH)
 
-# --- Cloud (GCP) — full stack on a Frankfurt VM, provisioned with Terraform ---
-TF_DIR  = infra/terraform
-VM_NAME = telemetry-stack
-VM_ZONE = europe-west3-a
+# --- Cloud (GCP) — two Terraform layers: foundation (seed, run once) + app (routine) ---
+TF_DIR         = infra/terraform
+FOUNDATION_DIR = $(TF_DIR)/foundation
+APP_DIR        = $(TF_DIR)/app
+VM_NAME        = telemetry-stack
+VM_ZONE        = europe-west3-a
 
 start:
 	./run.sh up
@@ -43,15 +46,22 @@ clean:
 	find data/checkpoints -mindepth 1 -type f -not -name '.gitkeep' -delete 2>/dev/null || true
 	find data/logs -mindepth 1 -type f -not -name '.gitkeep' -delete 2>/dev/null || true
 
-# === Cloud lifecycle (GCP, Terraform) =======================================
-cloud-plan:        ## Preview the cloud infrastructure changes
-	cd $(TF_DIR) && terraform plan
+# === Cloud — Layer 0 (foundation): run ONCE at setup, by the owner ===========
+cloud-foundation-up:   ## Create WIF + deployer SA + runtime SA + secret containers (seed)
+	cd $(FOUNDATION_DIR) && terraform init && terraform apply
 
-cloud-up:          ## Create the cloud infra + boot the stack VM (then run cloud-secrets)
-	cd $(TF_DIR) && terraform apply
-
-cloud-secrets:     ## Push secret values from .env into Secret Manager (run right after cloud-up)
+cloud-seed-secrets:    ## Seed secret VALUES once from .env (persist across app deploys)
 	./$(TF_DIR)/push-secrets.sh .env
+
+cloud-foundation-down: ## Tear down the foundation too (only when fully decommissioning)
+	cd $(FOUNDATION_DIR) && terraform destroy
+
+# === Cloud — Layer 1 (app): routine spin-up / tear-down (CLI or CI) ===========
+cloud-plan:        ## Preview the app-layer changes
+	cd $(APP_DIR) && terraform plan
+
+cloud-up:          ## Deploy the app layer (network + VM); boots the stack
+	cd $(APP_DIR) && terraform apply
 
 cloud-pause:       ## Stop the VM (no compute charge; data + config preserved)
 	gcloud compute instances stop $(VM_NAME) --zone=$(VM_ZONE)
@@ -62,5 +72,5 @@ cloud-resume:      ## Start the VM again; the stack auto-resumes
 cloud-tunnels:     ## Open IAP tunnels to the dashboards (Grafana, Kafka-UI, ...)
 	./$(TF_DIR)/iap-tunnels.sh $(VM_NAME) $(VM_ZONE)
 
-cloud-down:        ## Destroy ALL cloud infrastructure (back to $0)
-	cd $(TF_DIR) && terraform destroy
+cloud-down:        ## Destroy the app layer (foundation + secrets persist) → ~$0
+	cd $(APP_DIR) && terraform destroy
