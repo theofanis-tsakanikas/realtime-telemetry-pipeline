@@ -18,6 +18,7 @@ resources:
   - grafana/deployment.yaml
   - gmp/podmonitoring.yaml
   - gmp/frontend.yaml
+  - dbt/cronjob.yaml
 
 # ConfigMaps generated from the SAME provisioning files the compose/VM stack uses
 # (single source of truth). Generated from paths outside this dir, so render with
@@ -48,4 +49,6 @@ images:
   - name: europe-west3-docker.pkg.dev/realtime-telemetry-gcp/telemetry/simulator
     newTag: latest
   - name: europe-west3-docker.pkg.dev/realtime-telemetry-gcp/telemetry/spark
+    newTag: latest
+  - name: europe-west3-docker.pkg.dev/realtime-telemetry-gcp/telemetry/dbt
     newTag: latest

@@ -1,0 +1,18 @@
+# dbt + the project, baked into one image (same pattern as the simulator/spark
+# images). Run as a K8s CronJob on a schedule to refresh the BigQuery marts.
+# Auth is OAuth / Application Default Credentials via Workload Identity — no key
+# files, no profiles secrets (profiles.yml is env-var driven with defaults).
+FROM python:3.12-slim
+
+WORKDIR /dbt
+
+COPY dbt/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY dbt/ .
+
+# dbt finds profiles.yml in the project dir itself (self-contained project).
+ENV DBT_PROFILES_DIR=/dbt
+
+ENTRYPOINT ["dbt"]
+CMD ["build"]

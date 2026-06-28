@@ -20,7 +20,9 @@ infra/k8s/base/
 ├── spark/                    # Deployment + checkpoint PVC + Service (4040) — BigQuery sink ON
 ├── kafka-ui/                 # Deployment + Service
 ├── redis-insight/            # Deployment + Service
-└── grafana/                  # Deployment + Service (provisioned from ConfigMaps)
+├── grafana/                  # Deployment + Service (provisioned from ConfigMaps)
+├── gmp/                      # PodMonitoring (scrape Spark) + GMP query frontend
+└── dbt/                      # CronJob: `dbt build` every 2 min → refresh the BigQuery marts
 ```
 
 ConfigMaps for the Grafana provisioning, dashboards and Spark metrics are
@@ -76,6 +78,11 @@ kubectl -n telemetry port-forward svc/spark-processor 4040:4040  # Spark UI
 - **Spark → BigQuery is ON here** (`BIGQUERY_DATASET=telemetry`), unlike compose.
   Valid rows go to Redis *and* BigQuery; rejected rows to the DLQ topic *and* the
   BigQuery `rejections` table.
+- **dbt marts on a schedule.** A `CronJob` (in `dbt/`) runs `dbt build` every 2
+  minutes against BigQuery, keyless via the same Workload Identity. The marts are
+  short rolling windows, so the tight cadence keeps Looker Studio / the Grafana
+  panels current and shows them filling up during a recording. Built from
+  `docker/Dockerfile.dbt` (the dbt project baked into an image).
 - **System metrics via GMP.** A `PodMonitoring` (in `gmp/`) makes GKE Managed
   Service for Prometheus scrape the Spark driver's `/metrics/prometheus`. An
   in-cluster GMP **query frontend** is exposed as a Service named `prometheus`
