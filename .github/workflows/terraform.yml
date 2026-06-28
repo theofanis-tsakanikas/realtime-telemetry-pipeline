@@ -64,6 +64,8 @@ jobs:
         uses: bridgecrewio/checkov-action@v12
         with:
           directory: infra/terraform
+          config_file: .checkov.yaml
+          quiet: true # only surface failed checks (keeps the log clean)
           soft_fail: true
           framework: terraform
 
