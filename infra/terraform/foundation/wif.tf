@@ -7,7 +7,7 @@
 
 resource "google_iam_workload_identity_pool" "github" {
   project                   = var.project_id
-  workload_identity_pool_id = "github-pool"
+  workload_identity_pool_id = "gha-pool"
   display_name              = "GitHub Actions"
   description               = "Federated identity pool for GitHub Actions OIDC."
 
