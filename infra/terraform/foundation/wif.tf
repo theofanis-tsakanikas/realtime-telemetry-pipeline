@@ -53,6 +53,7 @@ locals {
   deployer_project_roles = [
     "roles/compute.admin",          # app VPC / firewall / NAT / VM
     "roles/iam.serviceAccountUser", # attach the runtime SA to the VM
+    "roles/bigquery.dataOwner",     # create/delete the app BigQuery dataset + tables
   ]
 }
 

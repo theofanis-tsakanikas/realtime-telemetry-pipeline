@@ -75,3 +75,15 @@ variable "deploy_secret" {
   type    = string
   default = "telemetry-deploy-key"
 }
+
+variable "bigquery_dataset" {
+  type        = string
+  description = "BigQuery dataset for the analytics sink (Spark → BigQuery, dbt marts)."
+  default     = "telemetry"
+}
+
+variable "bigquery_location" {
+  type        = string
+  description = "BigQuery dataset location."
+  default     = "europe-west3"
+}

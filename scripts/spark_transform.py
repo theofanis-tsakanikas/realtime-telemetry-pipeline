@@ -25,7 +25,18 @@ from data_quality import quality_metrics, write_dq_metrics
 from drift import batch_drift, write_drift_metrics
 from metrics_spec import METRICS
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import avg, col, count, from_json, lit, struct, to_json, to_timestamp, when
+from pyspark.sql.functions import (
+    avg,
+    col,
+    count,
+    current_timestamp,
+    from_json,
+    lit,
+    struct,
+    to_json,
+    to_timestamp,
+    when,
+)
 from pyspark.sql.functions import max as spark_max
 from pyspark.sql.types import DoubleType, StringType, StructField, StructType
 
@@ -53,6 +64,15 @@ SERIALIZATION_FORMAT = os.getenv("SERIALIZATION_FORMAT", "avro").lower()
 SPARK_PACKAGES = "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.5"
 if SERIALIZATION_FORMAT == "avro":
     SPARK_PACKAGES += ",org.apache.spark:spark-avro_2.12:3.5.5"
+
+# BigQuery analytics sink (optional): set BIGQUERY_DATASET to enable. Unset (e.g. local
+# runs without GCP) disables it. Streams via the BigQuery Storage Write API (direct write,
+# no temp GCS bucket). Auth is Application Default Credentials = the runtime SA.
+GCP_PROJECT = os.getenv("GCP_PROJECT", "realtime-telemetry-gcp")
+BIGQUERY_DATASET = os.getenv("BIGQUERY_DATASET")
+BIGQUERY_ENABLED = bool(BIGQUERY_DATASET)
+if BIGQUERY_ENABLED:
+    SPARK_PACKAGES += ",com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.41.0"
 CHECKPOINT_DIR = os.getenv("CHECKPOINT_DIR", "/tmp/spark-checkpoints/sensor_data")
 DLQ_CHECKPOINT_DIR = os.getenv("DLQ_CHECKPOINT_DIR", CHECKPOINT_DIR + "_dlq")
 
@@ -329,6 +349,23 @@ def write_observability(batch_df, batch_id: int) -> None:
         clean_batch.unpersist()
 
 
+def write_to_bigquery(shaped_df: DataFrame, table_id: str, checkpoint_suffix: str):
+    """Stream a shaped DataFrame to a BigQuery table via the Storage Write API.
+
+    Adds an ``ingest_time`` column and writes with ``writeMethod=direct`` (no temp GCS
+    bucket). Auth is Application Default Credentials = the runtime service account.
+    """
+    return (
+        shaped_df.withColumn("ingest_time", current_timestamp())
+        .writeStream.format("bigquery")
+        .option("table", f"{GCP_PROJECT}.{BIGQUERY_DATASET}.{table_id}")
+        .option("writeMethod", "direct")
+        .option("checkpointLocation", CHECKPOINT_DIR + checkpoint_suffix)
+        .outputMode("append")
+        .start()
+    )
+
+
 def main() -> None:
     """Main Spark Streaming entry point.
 
@@ -401,13 +438,48 @@ def main() -> None:
         .start()
     )
 
+    # 3d. Analytics branch → BigQuery (optional; only when BIGQUERY_DATASET is set).
+    # Same cleaned/rejected DataFrames as the Redis + DLQ branches, reshaped to the
+    # table schemas (timestamp → event_time; ingest_time added by the writer).
+    bigquery_queries = []
+    if BIGQUERY_ENABLED:
+        bigquery_queries = [
+            write_to_bigquery(
+                clean_data(parsed_df).selectExpr(
+                    "sensor_id",
+                    "temperature",
+                    "humidity",
+                    "pressure",
+                    "timestamp AS event_time",
+                ),
+                "readings",
+                "_bq_readings",
+            ),
+            write_to_bigquery(
+                rejected_data(parsed_df).selectExpr(
+                    "sensor_id",
+                    "rejection_reason",
+                    "timestamp AS event_time",
+                ),
+                "rejections",
+                "_bq_rejections",
+            ),
+        ]
+        logger.info(
+            "BigQuery sink enabled → %s.%s.{readings,rejections}",
+            GCP_PROJECT,
+            BIGQUERY_DATASET,
+        )
+
     logger.info(
-        "Streaming queries started: valid → Redis, rejected → Kafka topic '%s', observability → Redis",
+        "Streaming queries started: valid → Redis, rejected → Kafka topic '%s', "
+        "observability → Redis%s",
         DLQ_TOPIC,
+        ", analytics → BigQuery" if BIGQUERY_ENABLED else "",
     )
     spark.streams.awaitAnyTermination()
     # Surface which query died so the container log explains the exit.
-    for q in (redis_query, dlq_query, obs_query):
+    for q in (redis_query, dlq_query, obs_query, *bigquery_queries):
         if q.exception() is not None:
             raise q.exception()
 
