@@ -1,9 +1,9 @@
 # --------------------------------------------------------------------------- #
 # Fleet membership → Connect Gateway. Registering the cluster to the project
-# fleet lets the deploy workflow run `kubectl` against it **keylessly via the
-# gateway** (gcloud container fleet memberships get-credentials), with no direct
-# line-of-sight to the control-plane endpoint. So the control plane can be locked
-# down (var.control_plane_authorized_cidrs) without breaking CI deploys.
+# fleet lets you AND the deploy workflow run `kubectl` against it **keylessly via
+# the gateway** (gcloud container fleet memberships get-credentials), authenticated
+# by IAM identity regardless of source IP. This is the only way in — the control
+# plane is private (no public endpoint), so there is no IP allowlist to maintain.
 #
 # Lives in the app layer: the membership's lifecycle matches the cluster's — it
 # is created and destroyed together with each ephemeral deploy.
