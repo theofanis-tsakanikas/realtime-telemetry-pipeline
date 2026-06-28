@@ -1,0 +1,12 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    # Stable uid so the Pipeline Health dashboard JSON can reference it deterministically.
+    uid: prometheus-iot
+    type: prometheus
+    access: proxy
+    # The prometheus service on the compose network (scrapes Spark's metrics).
+    url: http://prometheus:9090
+    isDefault: false
+    editable: true
