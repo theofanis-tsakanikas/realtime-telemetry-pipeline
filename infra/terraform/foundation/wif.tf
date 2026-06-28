@@ -55,6 +55,8 @@ locals {
     "roles/iam.serviceAccountUser",  # act as the runtime / node SAs
     "roles/container.admin",         # create/delete the GKE Autopilot cluster
     "roles/artifactregistry.writer", # CI pushes the stack images to the registry
+    "roles/gkehub.editor",           # register the cluster to the fleet (membership)
+    "roles/gkehub.gatewayEditor",    # run kubectl against the cluster via Connect Gateway
   ]
 }
 
