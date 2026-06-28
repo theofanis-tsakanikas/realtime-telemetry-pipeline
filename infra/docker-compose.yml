@@ -85,6 +85,10 @@ services:
       - "3000:3000"
     environment:
       - GF_INSTALL_PLUGINS=redis-datasource
+      # External URL Grafana uses to build notification links. Defaults to localhost:3000
+      # (local); the cloud deployment sets GRAFANA_ROOT_URL to the IAP-tunnel address so
+      # Slack alert links resolve.
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       # Consumed by the provisioned Redis datasource (secureJsonData).
       - REDIS_PASSWORD=${REDIS_PASSWORD:-iot-streaming-demo}
