@@ -12,6 +12,8 @@ locals {
     "oslogin.googleapis.com",              # IAM-based SSH over IAP
     "bigquery.googleapis.com",             # analytics sink (Spark → BigQuery) + dbt
     "bigquerystorage.googleapis.com",      # BigQuery Storage Write API (streaming inserts)
+    "container.googleapis.com",            # GKE Autopilot cluster (the stack runtime)
+    "artifactregistry.googleapis.com",     # Docker registry for the stack images
   ]
 }
 

@@ -87,3 +87,27 @@ variable "bigquery_location" {
   description = "BigQuery dataset location."
   default     = "europe-west3"
 }
+
+variable "cluster_name" {
+  type        = string
+  description = "GKE Autopilot cluster name (the stack runtime)."
+  default     = "telemetry-autopilot"
+}
+
+variable "control_plane_authorized_cidrs" {
+  type = list(object({
+    cidr_block   = string
+    display_name = string
+  }))
+  description = <<-EOT
+    CIDRs allowed to reach the GKE control-plane (public) endpoint. Defaults to
+    open so kubectl works out of the box — NARROW THIS to your IP/32 before
+    applying for anything beyond a throwaway demo.
+  EOT
+  default = [
+    {
+      cidr_block   = "0.0.0.0/0"
+      display_name = "open — narrow to your IP/32"
+    }
+  ]
+}
