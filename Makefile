@@ -1,7 +1,7 @@
 .PHONY: start stop build restart logs ps test coverage lint clean \
         dbt-setup dbt-parse dbt-run dbt-test dbt-build \
         k8s-images k8s-render k8s-apply k8s-delete \
-        cloud-foundation-up cloud-seed-secrets cloud-foundation-down \
+        bootstrap cloud-foundation-up cloud-seed-secrets cloud-foundation-down \
         cloud-plan cloud-up cloud-down
 
 VENV_BIN = .venv/bin
@@ -92,6 +92,10 @@ k8s-delete: ## Remove the stack from the cluster
 	$(KUSTOMIZE) $(K8S_DIR) | kubectl delete -f -
 
 # === Cloud — Layer 0 (foundation): run ONCE at setup, by the owner ===========
+bootstrap:             ## One-time owner setup: foundation apply + seed secret VALUES from .env
+	cd $(FOUNDATION_DIR) && terraform init && terraform apply
+	./$(TF_DIR)/push-secrets.sh .env
+
 cloud-foundation-up:   ## Create WIF + deployer SA + runtime SA + secret containers (seed)
 	cd $(FOUNDATION_DIR) && terraform init && terraform apply
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Push secret VALUES from the local .env into Secret Manager (never via Terraform,
-# so secrets stay out of tfstate). Run after `make cloud-up`, before the VM finishes
-# booting (the VM retries reading secrets for ~10 minutes).
+# so secrets stay out of tfstate). Run once as part of `make bootstrap`, after the
+# foundation creates the (empty) secret containers. The values then persist across
+# every app deploy; the GKE stack reads them via the Secret Manager CSI driver.
 #
 # Uses only indexed arrays (no `declare -A`) so it works on macOS's bash 3.2.
 set -euo pipefail
