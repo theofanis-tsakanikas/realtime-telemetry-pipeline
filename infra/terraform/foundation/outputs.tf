@@ -30,3 +30,8 @@ output "workload_identity_ksa" {
   description = "Kubernetes SA (namespace/name) bound to the runtime GSA for keyless API access."
   value       = "${local.workload_identity_namespace}/${local.workload_identity_ksa}"
 }
+
+output "bigquery_dataset" {
+  description = "Persistent BigQuery analytics dataset (survives app teardown)."
+  value       = google_bigquery_dataset.telemetry.dataset_id
+}
