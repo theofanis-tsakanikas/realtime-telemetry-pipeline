@@ -38,6 +38,14 @@ resource "google_container_cluster" "autopilot" {
     master_ipv4_cidr_block  = "172.16.0.0/28"
   }
 
+  # GKE requires master authorized networks to be ENABLED whenever the private
+  # endpoint is on. We add no CIDR blocks on purpose — access is exclusively via
+  # Connect Gateway (which bypasses this), so the endpoint stays maximally locked
+  # down. The empty block is what enables the feature (satisfies CKV_GCP_20 too).
+  master_authorized_networks_config {
+    gcp_public_cidrs_access_enabled = false
+  }
+
   # Managed Secret Manager add-on: installs the Secrets Store CSI provider so the
   # SecretProviderClass can mount the foundation's secrets (Redis / Grafana /
   # Slack) into pods — keyless, via Workload Identity. No K8s Secrets in git.
