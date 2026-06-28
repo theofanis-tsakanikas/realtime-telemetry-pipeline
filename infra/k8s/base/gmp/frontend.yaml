@@ -1,0 +1,56 @@
+# GMP query frontend: a Prometheus-API-compatible proxy that reads the metrics
+# back from Cloud Monitoring (auth via Workload Identity → runtime GSA, which has
+# monitoring.viewer). Exposed as a Service named `prometheus` on 9090 — the SAME
+# name/port the shared Grafana datasource (infra/grafana/.../prometheus.yml) uses,
+# so the datasource resolves to GMP on GKE and to the prometheus container on
+# compose, with no per-environment file change.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus-frontend
+  namespace: telemetry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus-frontend
+  template:
+    metadata:
+      labels:
+        app: prometheus-frontend
+    spec:
+      serviceAccountName: telemetry-runtime
+      containers:
+        - name: frontend
+          image: gke.gcr.io/prometheus-engine/frontend:v0.8.2-gke.0
+          args:
+            - "--web.listen-address=:9090"
+            - "--query.project-id=realtime-telemetry-gcp"
+          ports:
+            - containerPort: 9090
+              name: web
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: web
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: telemetry
+spec:
+  selector:
+    app: prometheus-frontend
+  ports:
+    - port: 9090
+      targetPort: 9090

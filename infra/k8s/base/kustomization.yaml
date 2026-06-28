@@ -16,6 +16,8 @@ resources:
   - kafka-ui/deployment.yaml
   - redis-insight/deployment.yaml
   - grafana/deployment.yaml
+  - gmp/podmonitoring.yaml
+  - gmp/frontend.yaml
 
 # ConfigMaps generated from the SAME provisioning files the compose/VM stack uses
 # (single source of truth). Generated from paths outside this dir, so render with

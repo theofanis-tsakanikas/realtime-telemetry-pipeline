@@ -14,6 +14,7 @@ locals {
     "bigquerystorage.googleapis.com",      # BigQuery Storage Write API (streaming inserts)
     "container.googleapis.com",            # GKE Autopilot cluster (the stack runtime)
     "artifactregistry.googleapis.com",     # Docker registry for the stack images
+    "monitoring.googleapis.com",           # Managed Service for Prometheus (GMP)
   ]
 }
 
