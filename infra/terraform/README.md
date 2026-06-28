@@ -24,27 +24,39 @@ gcloud storage buckets create gs://realtime-telemetry-gcp-tfstate \
   --uniform-bucket-level-access --public-access-prevention
 gcloud storage buckets update gs://realtime-telemetry-gcp-tfstate --versioning
 
-# 1. Foundation: identity + secret containers + runtime SA
-make cloud-foundation-up
-
-# 2. Seed secret VALUES once (from your .env). They persist across every app deploy.
-make cloud-seed-secrets
+# 1. Bootstrap: foundation apply (WIF + SAs + Secret Manager + Artifact Registry +
+#    BigQuery) AND seed the secret VALUES from your local .env, in one command.
+make bootstrap
 ```
 
-## Routine lifecycle (app layer — CLI or CI)
+The foundation can't be a workflow — it bootstraps the very WIF that authenticates CI — so it's
+owner/CLI, run once. The secret values are seeded from `.env` here and then persist; nothing
+sensitive ever touches git or tfstate.
+
+## Routine lifecycle (the deploy button)
+
+Spin-up / tear-down is **one GitHub Action** (`Terraform (GCP)` → *Run workflow*), keyless via WIF
+and gated by the `production` environment:
+
+| `action` | What it does |
+|---|---|
+| `plan` | `terraform plan` the app layer |
+| `apply` | `terraform apply` (VPC + GKE) **then** `kubectl apply` the stack via Connect Gateway |
+| `destroy` | best-effort `kubectl delete` (releases PVs) **then** `terraform destroy` → ~$0 |
+
+Images are built separately by the **Build images** workflow (on push to the image files, or
+on-demand), tagged `:<sha>` + `:latest` — deploy only pulls them, never builds.
+
+Equivalent **CLI** path (same Makefile targets the workflow calls):
 
 ```bash
-make cloud-plan      # preview the app-layer changes
-make cloud-up        # deploy: VPC + Cloud NAT + GKE Autopilot cluster
-make k8s-images      # build + push the stack images → Artifact Registry
-make k8s-apply       # deploy the stack manifests onto the cluster
-make cloud-down      # destroy the app layer → ~$0 (foundation + BigQuery + secrets stay)
+make cloud-up && make k8s-images && make k8s-apply   # bring up
+make cloud-down                                       # tear down (foundation + BigQuery stay)
 ```
 
 Reach the dashboards with `kubectl port-forward` (see [`infra/k8s/README.md`](../k8s/README.md)) —
-no public LoadBalancer, same no-public-ingress posture the VM had. Because the **secrets are a
-seed** (Layer 0), an app deploy never re-pushes them; the cluster reads them from Secret Manager
-via the CSI driver.
+no public LoadBalancer, same no-public-ingress posture the VM had. The cluster reads secrets from
+Secret Manager via the CSI driver; an app deploy never re-pushes them.
 
 ## Why two layers (the professional reasons)
 

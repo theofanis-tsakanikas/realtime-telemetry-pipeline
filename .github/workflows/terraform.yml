@@ -2,8 +2,11 @@ name: Terraform (GCP)
 
 # Two-layer infra (foundation = owner-seeded, app = CI-deployable):
 #   PR            → validate BOTH layers + IaC security scan (no cloud creds) + app `plan` comment
-#   workflow_dispatch → keyless plan/apply/destroy of the APP layer via WIF (env-gated)
+#   workflow_dispatch → keyless plan/apply/destroy of the APP layer via WIF (env-gated).
+#     apply   = terraform (VPC + cluster) THEN kubectl apply the stack via Connect Gateway.
+#     destroy = best-effort kubectl delete (releases PVs) THEN terraform destroy.
 # The deployer SA can only touch the app layer (least-privilege), never its own WIF foundation.
+# Images are built separately (build-images.yml); deploy only references/pulls them.
 
 on:
   pull_request:
@@ -112,9 +115,6 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     environment: production
-    defaults:
-      run:
-        working-directory: infra/terraform/app
     steps:
       - uses: actions/checkout@v4
       - uses: google-github-actions/auth@v2
@@ -122,13 +122,50 @@ jobs:
           workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ env.DEPLOYER_SA }}
       - uses: hashicorp/setup-terraform@v3
-      - run: terraform init
-      - name: Plan
+      - name: Terraform init
+        working-directory: infra/terraform/app
+        run: terraform init
+
+      - name: Terraform plan
         if: inputs.action == 'plan'
+        working-directory: infra/terraform/app
         run: terraform plan -no-color
-      - name: Apply
+
+      # --- apply: bring up the infra, then deploy the stack onto the cluster ---
+      - name: Terraform apply (VPC + GKE Autopilot)
         if: inputs.action == 'apply'
+        working-directory: infra/terraform/app
         run: terraform apply -auto-approve -no-color
-      - name: Destroy
+
+      - name: Set up gcloud + kubectl
+        if: inputs.action == 'apply'
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          install_components: kubectl,gke-gcloud-auth-plugin
+
+      - name: kubeconfig via Connect Gateway
+        if: inputs.action == 'apply'
+        run: gcloud container fleet memberships get-credentials telemetry-autopilot --project realtime-telemetry-gcp
+
+      - name: Deploy the stack manifests
+        if: inputs.action == 'apply'
+        run: kubectl kustomize --load-restrictor=LoadRestrictionsNone infra/k8s/base | kubectl apply -f -
+
+      # --- destroy: release the PVs (best-effort), then tear down the infra ---
+      - name: Set up gcloud + kubectl
         if: inputs.action == 'destroy'
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          install_components: kubectl,gke-gcloud-auth-plugin
+
+      - name: Delete the stack manifests (best-effort — releases PVs)
+        if: inputs.action == 'destroy'
+        continue-on-error: true
+        run: |
+          gcloud container fleet memberships get-credentials telemetry-autopilot --project realtime-telemetry-gcp || exit 0
+          kubectl kustomize --load-restrictor=LoadRestrictionsNone infra/k8s/base | kubectl delete --ignore-not-found -f - || true
+
+      - name: Terraform destroy
+        if: inputs.action == 'destroy'
+        working-directory: infra/terraform/app
         run: terraform destroy -auto-approve -no-color
