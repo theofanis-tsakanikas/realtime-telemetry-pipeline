@@ -1,0 +1,108 @@
+# Self-hosted Grafana on GKE. Fully provisioned from ConfigMaps (datasources,
+# dashboard provider, dashboards, unified-alerting), so no PVC is needed — a
+# restart re-provisions an identical instance. Admin password / Redis password /
+# Slack webhook come from Secret Manager via the CSI volume; Grafana interpolates
+# the $REDIS_PASSWORD and $SLACK_WEBHOOK_URL env vars inside the provisioning files.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: telemetry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      serviceAccountName: telemetry-runtime
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.4.0
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_INSTALL_PLUGINS
+              value: "redis-datasource"
+            - name: GF_SERVER_ROOT_URL
+              value: "http://localhost:3000"
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: telemetry-secrets
+                  key: grafana-admin-password
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: telemetry-secrets
+                  key: redis-password
+            - name: SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: telemetry-secrets
+                  key: slack-webhook-url
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+              readOnly: true
+            - name: dash-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+              readOnly: true
+            - name: alerting
+              mountPath: /etc/grafana/provisioning/alerting
+              readOnly: true
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+              readOnly: true
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dash-provider
+          configMap:
+            name: grafana-dash-provider
+        - name: alerting
+          configMap:
+            name: grafana-alerting
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: telemetry-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: telemetry
+spec:
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: 3000

@@ -44,6 +44,13 @@ resource "google_container_cluster" "autopilot" {
     }
   }
 
+  # Managed Secret Manager add-on: installs the Secrets Store CSI provider so the
+  # SecretProviderClass can mount the foundation's secrets (Redis / Grafana /
+  # Slack) into pods — keyless, via Workload Identity. No K8s Secrets in git.
+  secret_manager_config {
+    enabled = true
+  }
+
   # Ephemeral demo cluster — allow `terraform destroy` to tear it down.
   deletion_protection = false
 }

@@ -1,0 +1,92 @@
+# Redis Stack (RedisTimeSeries + embedded RedisInsight on 8001). Password comes
+# from Secret Manager via the CSI volume (mounting it materialises the synced
+# telemetry-secrets Secret, which the env then reads). Data on a PVC.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: telemetry
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      serviceAccountName: telemetry-runtime
+      containers:
+        - name: redis
+          image: redis/redis-stack:7.4.0-v3
+          ports:
+            - containerPort: 6379
+              name: redis
+            - containerPort: 8001
+              name: insight
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: telemetry-secrets
+                  key: redis-password
+            # redis-stack passes REDIS_ARGS to redis-server.
+            - name: REDIS_ARGS
+              value: "--requirepass $(REDIS_PASSWORD)"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - redis-cli -a "$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: telemetry-secrets
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: telemetry
+spec:
+  clusterIP: None
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+    - name: insight
+      port: 8001
+      targetPort: 8001

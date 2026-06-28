@@ -1,5 +1,6 @@
 .PHONY: start stop build restart logs ps test coverage lint clean \
         dbt-setup dbt-parse dbt-run dbt-test dbt-build \
+        k8s-images k8s-render k8s-apply k8s-delete \
         cloud-foundation-up cloud-seed-secrets cloud-foundation-down \
         cloud-plan cloud-up cloud-pause cloud-resume cloud-tunnels cloud-down
 
@@ -66,6 +67,29 @@ dbt-test:   ## Run the dbt data tests against the built marts
 
 dbt-build:  ## run + test in dependency order (the usual refresh command)
 	$(DBT) build
+
+# === Kubernetes (GKE) — the stack as manifests =================================
+K8S_DIR   = infra/k8s/base
+AR_REPO   = europe-west3-docker.pkg.dev/realtime-telemetry-gcp/telemetry
+# Generators read provisioning files outside the kustomize root, so relax the
+# load restrictor. kubectl has kustomize built in.
+KUSTOMIZE = kubectl kustomize --load-restrictor=LoadRestrictionsNone
+
+k8s-images: ## Build simulator + spark images (amd64) and push to Artifact Registry
+	gcloud auth configure-docker europe-west3-docker.pkg.dev --quiet
+	docker build --platform linux/amd64 -f docker/Dockerfile.simulator -t $(AR_REPO)/simulator:latest .
+	docker push $(AR_REPO)/simulator:latest
+	docker build --platform linux/amd64 -f docker/Dockerfile.spark -t $(AR_REPO)/spark:latest .
+	docker push $(AR_REPO)/spark:latest
+
+k8s-render: ## Render the manifests to stdout (offline; what CI validates)
+	$(KUSTOMIZE) $(K8S_DIR)
+
+k8s-apply:  ## Deploy the stack to the current kubectl context (after get-credentials)
+	$(KUSTOMIZE) $(K8S_DIR) | kubectl apply -f -
+
+k8s-delete: ## Remove the stack from the cluster
+	$(KUSTOMIZE) $(K8S_DIR) | kubectl delete -f -
 
 # === Cloud — Layer 0 (foundation): run ONCE at setup, by the owner ===========
 cloud-foundation-up:   ## Create WIF + deployer SA + runtime SA + secret containers (seed)

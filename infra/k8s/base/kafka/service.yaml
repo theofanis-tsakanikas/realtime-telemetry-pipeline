@@ -1,0 +1,20 @@
+# Headless service: gives the StatefulSet stable pod DNS and lets clients reach
+# the broker at kafka-broker:9092 (same name the compose stack used).
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-broker
+  namespace: telemetry
+  labels:
+    app: kafka-broker
+spec:
+  clusterIP: None
+  selector:
+    app: kafka-broker
+  ports:
+    - name: internal
+      port: 9092
+      targetPort: 9092
+    - name: controller
+      port: 29093
+      targetPort: 29093

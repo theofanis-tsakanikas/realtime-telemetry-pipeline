@@ -1,0 +1,108 @@
+# PySpark Structured Streaming job. Image from Artifact Registry. On GKE the
+# BigQuery sink is switched ON (BIGQUERY_DATASET set) — the job writes valid rows
+# to Redis AND BigQuery, and authenticates to BigQuery via Workload Identity
+# (the telemetry-runtime KSA → runtime GSA, no key files).
+#
+# Recreate strategy: the checkpoint PVC is ReadWriteOnce, so we never want two
+# pods mounting it at once during a rollout.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-processor
+  namespace: telemetry
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: spark-processor
+  template:
+    metadata:
+      labels:
+        app: spark-processor
+    spec:
+      serviceAccountName: telemetry-runtime
+      containers:
+        - name: spark
+          image: europe-west3-docker.pkg.dev/realtime-telemetry-gcp/telemetry/spark:latest
+          ports:
+            - containerPort: 4040
+              name: ui-metrics
+          env:
+            - name: KAFKA_BROKER
+              value: "kafka-broker:9092"
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: telemetry-secrets
+                  key: redis-password
+            - name: CHECKPOINT_DIR
+              value: "/data/checkpoints/sensor_data"
+            - name: SERIALIZATION_FORMAT
+              value: "avro"
+            - name: SCHEMA_REGISTRY_URL
+              value: "http://schema-registry:8081"
+            # Enables the BigQuery analytics sink (unset locally / in compose).
+            - name: GCP_PROJECT
+              value: "realtime-telemetry-gcp"
+            - name: BIGQUERY_DATASET
+              value: "telemetry"
+          volumeMounts:
+            - name: checkpoints
+              mountPath: /data/checkpoints
+            - name: spark-metrics
+              mountPath: /opt/spark-conf
+              readOnly: true
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+      volumes:
+        - name: checkpoints
+          persistentVolumeClaim:
+            claimName: spark-checkpoints
+        - name: spark-metrics
+          configMap:
+            name: spark-metrics
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: telemetry-secrets
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: spark-checkpoints
+  namespace: telemetry
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+# Exposes the Spark UI (4040) and the Prometheus metrics endpoint for GMP (Phase E).
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-processor
+  namespace: telemetry
+  labels:
+    app: spark-processor
+spec:
+  selector:
+    app: spark-processor
+  ports:
+    - name: ui-metrics
+      port: 4040
+      targetPort: 4040

@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-insight
+  namespace: telemetry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-insight
+  template:
+    metadata:
+      labels:
+        app: redis-insight
+    spec:
+      serviceAccountName: telemetry-runtime
+      containers:
+        - name: redis-insight
+          image: redis/redisinsight:2.66
+          ports:
+            - containerPort: 5540
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-insight
+  namespace: telemetry
+spec:
+  selector:
+    app: redis-insight
+  ports:
+    - port: 5540
+      targetPort: 5540
