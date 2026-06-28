@@ -1,0 +1,19 @@
+# Accepted exceptions for the Checkov IaC scan. Each skip is either a false
+# positive on GKE Autopilot (managed defaults Checkov can't see) or a deliberate
+# choice for an ephemeral demo. Genuine findings are FIXED in the Terraform
+# (e.g. master authorized networks, VPC flow logs, cluster labels), not skipped.
+skip-check:
+  - CKV_GCP_69   # GKE Metadata Server: enabled by default on Autopilot
+  - CKV_GCP_13   # Client-certificate auth: disabled by default on Autopilot
+  - CKV_GCP_12   # Network Policy: Autopilot ships Dataplane V2 (built in)
+  - CKV_GCP_61   # Intranode visibility: managed by Autopilot
+  - CKV_GCP_65   # Google Groups for RBAC: not applicable to a solo project
+  - CKV_GCP_66   # Binary Authorization: out of scope for the demo
+  - CKV_GCP_80   # BigQuery table CSEK: Google-managed encryption is sufficient
+  - CKV_GCP_81   # BigQuery dataset CSEK: Google-managed encryption is sufficient
+  - CKV_GCP_84   # Artifact Registry CSEK: Google-managed encryption is sufficient
+  - CKV_GCP_121  # BigQuery deletion protection: intentionally off (ephemeral)
+  - CKV_GCP_125  # OIDC trust: locked to one repo via attribute_condition
+  - CKV_GCP_49   # Deployer needs serviceAccountUser to act as the runtime/node SAs
+  - CKV_GCP_41   # Deployer is a scoped CI service account, not a human user
+  - CKV2_GCP_18  # GKE manages its own firewall rules for the cluster

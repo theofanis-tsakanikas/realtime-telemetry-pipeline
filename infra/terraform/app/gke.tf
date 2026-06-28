@@ -53,6 +53,12 @@ resource "google_container_cluster" "autopilot" {
     enabled = true
   }
 
+  # Ownership / cost-tracking labels (and CKV_GCP_21).
+  resource_labels = {
+    app = "telemetry"
+    env = "demo"
+  }
+
   # Ephemeral demo cluster — allow `terraform destroy` to tear it down.
   deletion_protection = false
 }
