@@ -1,6 +1,6 @@
 .PHONY: start stop build restart logs ps test coverage lint clean \
         dbt-setup dbt-parse dbt-run dbt-test dbt-build \
-        k8s-images k8s-render k8s-apply k8s-delete \
+        k8s-images k8s-kubeconfig k8s-render k8s-apply k8s-delete \
         bootstrap cloud-foundation-up cloud-seed-secrets cloud-foundation-down \
         cloud-plan cloud-up cloud-down
 
@@ -81,6 +81,9 @@ k8s-images: ## Build simulator + spark + dbt images (amd64) and push to Artifact
 	docker push $(AR_REPO)/spark:latest
 	docker build --platform linux/amd64 -f docker/Dockerfile.dbt -t $(AR_REPO)/dbt:latest .
 	docker push $(AR_REPO)/dbt:latest
+
+k8s-kubeconfig: ## Point kubectl at the (private) cluster via Connect Gateway
+	gcloud container fleet memberships get-credentials telemetry-autopilot --project realtime-telemetry-gcp
 
 k8s-render: ## Render the manifests to stdout (offline; what CI validates)
 	$(KUSTOMIZE) $(K8S_DIR)

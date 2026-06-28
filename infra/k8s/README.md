@@ -42,9 +42,10 @@ the pods read via `secretKeyRef`. Auth is Workload Identity — the
 ## Deploy
 
 ```bash
-# 1. Point kubectl at the cluster (output of the app-layer Terraform)
-gcloud container clusters get-credentials telemetry-autopilot \
-  --region europe-west3 --project realtime-telemetry-gcp
+# 1. Point kubectl at the cluster via Connect Gateway (the control plane is
+#    private — this is keyless and works from any IP). Same as `make k8s-kubeconfig`.
+gcloud container fleet memberships get-credentials telemetry-autopilot \
+  --project realtime-telemetry-gcp
 
 # 2. Build + push the simulator and spark images to Artifact Registry
 make k8s-images

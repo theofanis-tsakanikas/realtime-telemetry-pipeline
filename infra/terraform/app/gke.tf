@@ -4,11 +4,10 @@
 # and scale to the workloads in Phase D's manifests.
 #
 # VPC-native, in the same VPC as the rest of the app layer. Private nodes (no
-# public IPs; egress via the existing Cloud NAT). The control plane keeps a
-# public endpoint locked to var.control_plane_authorized_cidrs so kubectl works
-# from your machine without a bastion — narrow it to your IP before applying.
-# Workload Identity (always on in Autopilot) lets pods authenticate as the
-# runtime GSA; the binding lives in the foundation layer.
+# public IPs; egress via the existing Cloud NAT) AND a private control plane (no
+# public API endpoint). Reach the cluster via Connect Gateway (you + CI), keyless
+# and IP-independent. Workload Identity (always on in Autopilot) lets pods
+# authenticate as the runtime GSA; the binding lives in the foundation layer.
 # --------------------------------------------------------------------------- #
 
 resource "google_container_cluster" "autopilot" {
@@ -28,20 +27,15 @@ resource "google_container_cluster" "autopilot" {
     channel = "REGULAR"
   }
 
+  # Fully private control plane: no public API endpoint exists at all (so there is
+  # nothing to IP-allowlist, and no dynamic-IP problem). Both you and CI reach the
+  # cluster via Connect Gateway, which authenticates by IAM identity regardless of
+  # source IP. terraform itself is unaffected — it talks to the GKE management API,
+  # not the cluster endpoint.
   private_cluster_config {
     enable_private_nodes    = true
-    enable_private_endpoint = false
+    enable_private_endpoint = true
     master_ipv4_cidr_block  = "172.16.0.0/28"
-  }
-
-  master_authorized_networks_config {
-    dynamic "cidr_blocks" {
-      for_each = var.control_plane_authorized_cidrs
-      content {
-        cidr_block   = cidr_blocks.value.cidr_block
-        display_name = cidr_blocks.value.display_name
-      }
-    }
   }
 
   # Managed Secret Manager add-on: installs the Secrets Store CSI provider so the
