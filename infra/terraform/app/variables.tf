@@ -22,15 +22,15 @@ variable "control_plane_authorized_cidrs" {
     display_name = string
   }))
   description = <<-EOT
-    CIDRs allowed to reach the GKE control-plane (public) endpoint. Defaults to
-    open so kubectl works out of the box — NARROW THIS to your IP/32 before
-    applying. CI deploys via Connect Gateway (not this endpoint), so locking it
-    down does not break the deploy workflow.
+    CIDRs allowed to reach the GKE control-plane (public) endpoint. Locked to the
+    owner's IP — CI deploys via Connect Gateway (not this endpoint), so this does
+    not affect the deploy workflow. If your ISP rotates your IP and kubectl from
+    your laptop starts timing out, update this /32 (curl ifconfig.me) and re-apply.
   EOT
   default = [
     {
-      cidr_block   = "0.0.0.0/0"
-      display_name = "open — narrow to your IP/32"
+      cidr_block   = "85.73.242.100/32"
+      display_name = "owner laptop"
     }
   ]
 }
