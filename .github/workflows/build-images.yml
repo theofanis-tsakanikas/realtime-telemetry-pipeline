@@ -26,7 +26,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  WORKLOAD_IDENTITY_PROVIDER: projects/64747416265/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+  WORKLOAD_IDENTITY_PROVIDER: projects/64747416265/locations/global/workloadIdentityPools/gha-pool/providers/github-provider
   DEPLOYER_SA: gha-deployer@realtime-telemetry-gcp.iam.gserviceaccount.com
   AR_HOST: europe-west3-docker.pkg.dev
   AR_REPO: europe-west3-docker.pkg.dev/realtime-telemetry-gcp/telemetry
