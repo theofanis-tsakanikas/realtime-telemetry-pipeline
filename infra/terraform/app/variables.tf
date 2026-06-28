@@ -76,18 +76,6 @@ variable "deploy_secret" {
   default = "telemetry-deploy-key"
 }
 
-variable "bigquery_dataset" {
-  type        = string
-  description = "BigQuery dataset for the analytics sink (Spark → BigQuery, dbt marts)."
-  default     = "telemetry"
-}
-
-variable "bigquery_location" {
-  type        = string
-  description = "BigQuery dataset location."
-  default     = "europe-west3"
-}
-
 variable "cluster_name" {
   type        = string
   description = "GKE Autopilot cluster name (the stack runtime)."

@@ -51,9 +51,8 @@ resource "google_service_account_iam_member" "wif_user" {
 # so the deployer can never escalate or manage its own foundation.
 locals {
   deployer_project_roles = [
-    "roles/compute.admin",           # app VPC / firewall / NAT / VM
-    "roles/iam.serviceAccountUser",  # attach the runtime SA to the VM / Autopilot nodes
-    "roles/bigquery.dataOwner",      # create/delete the app BigQuery dataset + tables
+    "roles/compute.admin",           # app VPC / firewall / NAT
+    "roles/iam.serviceAccountUser",  # act as the runtime / node SAs
     "roles/container.admin",         # create/delete the GKE Autopilot cluster
     "roles/artifactregistry.writer", # CI pushes the stack images to the registry
   ]
