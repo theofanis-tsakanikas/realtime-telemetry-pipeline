@@ -1,7 +1,7 @@
 # --------------------------------------------------------------------------- #
-# Network: a custom VPC with NO public ingress. The VM has no external IP; you
-# reach its dashboards through IAP TCP tunnels, and it reaches the internet
-# (Docker Hub, GitHub, Maven) through Cloud NAT.
+# Network: a custom VPC hosting the GKE Autopilot cluster. Nodes are private (no
+# external IPs) and reach the internet (image pulls, Maven) through Cloud NAT.
+# Dashboards are reached via `kubectl port-forward`, not a public LoadBalancer.
 # --------------------------------------------------------------------------- #
 
 resource "google_compute_network" "vpc" {
@@ -29,22 +29,7 @@ resource "google_compute_subnetwork" "subnet" {
   }
 }
 
-# Allow ONLY Google's IAP range to reach SSH + the dashboard ports. No 0.0.0.0/0.
-resource "google_compute_firewall" "iap_ingress" {
-  name      = "allow-iap-ingress"
-  network   = google_compute_network.vpc.name
-  direction = "INGRESS"
-
-  source_ranges = ["35.235.240.0/20"]
-  target_tags   = ["telemetry-stack"]
-
-  allow {
-    protocol = "tcp"
-    ports    = ["22", "3000", "4040", "5540", "8001", "8081", "8085", "9090"]
-  }
-}
-
-# Cloud NAT: outbound internet for the no-external-IP VM.
+# Cloud NAT: outbound internet for the private GKE nodes (no external IPs).
 resource "google_compute_router" "router" {
   name    = "telemetry-router"
   region  = var.region
