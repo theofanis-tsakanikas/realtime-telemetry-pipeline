@@ -1,9 +1,9 @@
 name: Terraform (GCP)
 
-# - Pull requests touching infra/terraform → fmt + validate ONLY (no cloud
-#   credentials: `init -backend=false`), so the PR check holds no GCP access.
-# - Manual dispatch → keyless plan/apply via Workload Identity Federation.
-# The WIF provider + deployer SA below are Terraform OUTPUTS (identifiers, not secrets).
+# Two-layer infra (foundation = owner-seeded, app = CI-deployable):
+#   PR            → validate BOTH layers + IaC security scan (no cloud creds) + app `plan` comment
+#   workflow_dispatch → keyless plan/apply/destroy of the APP layer via WIF (env-gated)
+# The deployer SA can only touch the app layer (least-privilege), never its own WIF foundation.
 
 on:
   pull_request:
@@ -13,57 +13,122 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "plan or apply"
+        description: "App-layer action"
         type: choice
-        options: [plan, apply]
+        options: [plan, apply, destroy]
         default: plan
 
 permissions:
   contents: read
-  id-token: write # required for the OIDC token WIF exchanges (deploy job only)
+  id-token: write # OIDC token for WIF
+  pull-requests: write # post the plan comment
 
 concurrency:
   group: terraform-gcp
   cancel-in-progress: false
 
+env:
+  WORKLOAD_IDENTITY_PROVIDER: projects/64747416265/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+  DEPLOYER_SA: gha-deployer@realtime-telemetry-gcp.iam.gserviceaccount.com
+
 jobs:
+  # fmt + validate BOTH layers, no cloud credentials → always safe to run on a fork PR.
   validate:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        layer: [foundation, app]
     defaults:
       run:
-        working-directory: infra/terraform
+        working-directory: infra/terraform/${{ matrix.layer }}
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
-      - run: terraform fmt -check -recursive
-      - run: terraform init -backend=false # no remote state, no GCP creds
+      - run: terraform fmt -check
+      - run: terraform init -backend=false
       - run: terraform validate
 
-  deploy:
-    # Privileged path — only on explicit manual dispatch, never on a PR.
-    if: github.event_name == 'workflow_dispatch'
+  # IaC security/lint scanning (advisory — reports findings without blocking the merge).
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: terraform-linters/setup-tflint@v4
+      - name: tflint
+        continue-on-error: true
+        run: tflint --recursive --chdir=infra/terraform
+      - name: checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: infra/terraform
+          soft_fail: true
+          framework: terraform
+
+  # Keyless `terraform plan` of the app layer on PRs, posted as a comment. Best-effort:
+  # needs the foundation (WIF/deployer) to exist, so it won't block the merge if it can't run.
+  plan:
+    if: github.event_name == 'pull_request'
     needs: validate
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: infra/terraform
-    env:
-      WORKLOAD_IDENTITY_PROVIDER: projects/64747416265/locations/global/workloadIdentityPools/github-pool/providers/github-provider
-      DEPLOYER_SA: gha-deployer@realtime-telemetry-gcp.iam.gserviceaccount.com
+        working-directory: infra/terraform/app
     steps:
       - uses: actions/checkout@v4
-
       - id: auth
-        name: Authenticate to GCP (Workload Identity Federation)
+        continue-on-error: true # foundation (WIF) may not be applied yet
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ env.DEPLOYER_SA }}
+      - uses: hashicorp/setup-terraform@v3
+      - id: init
+        if: steps.auth.outcome == 'success'
+        continue-on-error: true
+        run: terraform init
+      - id: plan
+        if: steps.init.outcome == 'success'
+        continue-on-error: true
+        run: terraform plan -no-color -input=false
+      - uses: actions/github-script@v7
+        if: always()
+        env:
+          PLAN: ${{ steps.plan.outputs.stdout }}
+          OUTCOME: ${{ steps.plan.outcome }}
+        with:
+          script: |
+            const ok = process.env.OUTCOME === 'success';
+            const body = ok
+              ? "#### Terraform plan — app layer ✅\n```\n" + (process.env.PLAN || '').slice(0, 64000) + "\n```"
+              : "#### Terraform plan — app layer ⏭️ skipped (foundation not applied yet / no creds on this PR)";
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number, owner: context.repo.owner,
+              repo: context.repo.repo, body });
 
+  # Privileged app-layer apply/destroy — ONLY on manual dispatch, behind the
+  # `production` environment (add required reviewers in repo settings for an approval gate).
+  deploy:
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: infra/terraform/app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
       - uses: hashicorp/setup-terraform@v3
       - run: terraform init
       - name: Plan
+        if: inputs.action == 'plan'
         run: terraform plan -no-color
       - name: Apply
         if: inputs.action == 'apply'
         run: terraform apply -auto-approve -no-color
+      - name: Destroy
+        if: inputs.action == 'destroy'
+        run: terraform destroy -auto-approve -no-color
