@@ -2,8 +2,10 @@
 # series (TS.RANGE drift:<metric>:z). Single-series queries avoid the multi-frame label
 # collision that a TS.MRANGE-of-all-metrics produces in Grafana's expression engine.
 #
-# Per rule:  A  TS.RANGE drift:<metric>:z   →  B math abs($A)  →  C reduce last(B)  →
+# Per rule:  A  TS.RANGE drift:<metric>:z   →  B math abs($A)  →  C reduce max(B)  →
 #            D threshold C > 3   (the 3 sigma control limit). Routed to Slack via team label.
+# max (not last) over the window keeps the alert stable when per-batch z is noisy. Each rule
+# links to the Drift panel (__dashboardUid__/__panelId__) so the Slack notification deep-links.
 apiVersion: 1
 
 groups:
@@ -20,6 +22,8 @@ groups:
         execErrState: Error
         labels: { severity: warning, team: data-quality }
         annotations:
+          __dashboardUid__: iot-sensors
+          __panelId__: "8"
           summary: "Temperature has drifted beyond 3 sigma from its baseline"
           description: "drift:temperature:z exceeded the 3 sigma control limit — the reading distribution shifted even though individual values may still be in range."
         data:
@@ -37,7 +41,7 @@ groups:
             model: { refId: B, type: math, datasource: { type: __expr__, uid: __expr__ }, expression: "abs($A)" }
           - refId: C
             datasourceUid: __expr__
-            model: { refId: C, type: reduce, datasource: { type: __expr__, uid: __expr__ }, expression: B, reducer: last }
+            model: { refId: C, type: reduce, datasource: { type: __expr__, uid: __expr__ }, expression: B, reducer: max }
           - refId: D
             datasourceUid: __expr__
             model:
@@ -56,6 +60,8 @@ groups:
         execErrState: Error
         labels: { severity: warning, team: data-quality }
         annotations:
+          __dashboardUid__: iot-sensors
+          __panelId__: "8"
           summary: "Humidity has drifted beyond 3 sigma from its baseline"
           description: "drift:humidity:z exceeded the 3 sigma control limit."
         data:
@@ -73,7 +79,7 @@ groups:
             model: { refId: B, type: math, datasource: { type: __expr__, uid: __expr__ }, expression: "abs($A)" }
           - refId: C
             datasourceUid: __expr__
-            model: { refId: C, type: reduce, datasource: { type: __expr__, uid: __expr__ }, expression: B, reducer: last }
+            model: { refId: C, type: reduce, datasource: { type: __expr__, uid: __expr__ }, expression: B, reducer: max }
           - refId: D
             datasourceUid: __expr__
             model:
@@ -92,6 +98,8 @@ groups:
         execErrState: Error
         labels: { severity: warning, team: data-quality }
         annotations:
+          __dashboardUid__: iot-sensors
+          __panelId__: "8"
           summary: "Pressure has drifted beyond 3 sigma from its baseline"
           description: "drift:pressure:z exceeded the 3 sigma control limit."
         data:
@@ -109,7 +117,7 @@ groups:
             model: { refId: B, type: math, datasource: { type: __expr__, uid: __expr__ }, expression: "abs($A)" }
           - refId: C
             datasourceUid: __expr__
-            model: { refId: C, type: reduce, datasource: { type: __expr__, uid: __expr__ }, expression: B, reducer: last }
+            model: { refId: C, type: reduce, datasource: { type: __expr__, uid: __expr__ }, expression: B, reducer: max }
           - refId: D
             datasourceUid: __expr__
             model:
