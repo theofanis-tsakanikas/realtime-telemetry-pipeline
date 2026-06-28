@@ -1,13 +1,12 @@
 # --------------------------------------------------------------------------- #
-# GKE Workload Identity: let the stack's Kubernetes service account impersonate
-# the runtime GSA (which already holds Secret Manager + BigQuery access), so pods
-# authenticate to Google APIs with NO key files — the same keyless model the VM
-# used, now for GKE. The binding is on the GSA, so it lives in the foundation
-# (the least-privilege app deployer can't modify the runtime SA's IAM).
+# GKE Workload Identity wiring. The actual binding (KSA → runtime GSA) lives in
+# the APP layer, NOT here: the PROJECT.svc.id.goog identity pool only springs
+# into existence once a cluster with Workload Identity is created, so it cannot
+# be bound in the foundation (which runs before any cluster exists).
 #
-# The member principal is deterministic from project + namespace + KSA name, so
-# it can be created before the cluster exists. The app layer's K8s manifests
-# create namespace `telemetry` + KSA `telemetry-runtime` and annotate it back.
+# What the foundation does instead: grant the deployer the ability to set the
+# runtime SA's IAM policy — scoped to that ONE SA — so the app layer can create
+# the workloadIdentityUser binding without project-wide service-account admin.
 # --------------------------------------------------------------------------- #
 
 locals {
@@ -15,8 +14,8 @@ locals {
   workload_identity_ksa       = "telemetry-runtime"
 }
 
-resource "google_service_account_iam_member" "gke_workload_identity" {
+resource "google_service_account_iam_member" "deployer_runtime_admin" {
   service_account_id = google_service_account.vm.name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[${local.workload_identity_namespace}/${local.workload_identity_ksa}]"
+  role               = "roles/iam.serviceAccountAdmin"
+  member             = "serviceAccount:${google_service_account.deployer.email}"
 }
