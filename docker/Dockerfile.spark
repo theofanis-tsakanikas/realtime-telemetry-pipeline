@@ -2,7 +2,7 @@
 # public.ecr.aws/bitnami/spark:3.5.5 and docker.io/bitnami/spark:3.5.5 no longer
 # resolve. The archived image lives under the bitnamilegacy/ namespace — a drop-in
 # replacement with the identical layout.
-FROM docker.io/bitnamilegacy/spark:3.5.5
+FROM docker.io/bitnamilegacy/spark:4.0.0
 
 WORKDIR /app
 
