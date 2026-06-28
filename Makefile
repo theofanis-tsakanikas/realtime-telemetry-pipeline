@@ -73,12 +73,14 @@ AR_REPO   = europe-west3-docker.pkg.dev/realtime-telemetry-gcp/telemetry
 # load restrictor. kubectl has kustomize built in.
 KUSTOMIZE = kubectl kustomize --load-restrictor=LoadRestrictionsNone
 
-k8s-images: ## Build simulator + spark images (amd64) and push to Artifact Registry
+k8s-images: ## Build simulator + spark + dbt images (amd64) and push to Artifact Registry
 	gcloud auth configure-docker europe-west3-docker.pkg.dev --quiet
 	docker build --platform linux/amd64 -f docker/Dockerfile.simulator -t $(AR_REPO)/simulator:latest .
 	docker push $(AR_REPO)/simulator:latest
 	docker build --platform linux/amd64 -f docker/Dockerfile.spark -t $(AR_REPO)/spark:latest .
 	docker push $(AR_REPO)/spark:latest
+	docker build --platform linux/amd64 -f docker/Dockerfile.dbt -t $(AR_REPO)/dbt:latest .
+	docker push $(AR_REPO)/dbt:latest
 
 k8s-render: ## Render the manifests to stdout (offline; what CI validates)
 	$(KUSTOMIZE) $(K8S_DIR)
