@@ -10,6 +10,8 @@ locals {
     "secretmanager.googleapis.com",        # Redis / Slack / Grafana / deploy-key secrets
     "iap.googleapis.com",                  # IAP TCP tunnels to the dashboards
     "oslogin.googleapis.com",              # IAM-based SSH over IAP
+    "bigquery.googleapis.com",             # analytics sink (Spark → BigQuery) + dbt
+    "bigquerystorage.googleapis.com",      # BigQuery Storage Write API (streaming inserts)
   ]
 }
 
