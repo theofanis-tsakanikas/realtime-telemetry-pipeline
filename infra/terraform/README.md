@@ -55,14 +55,16 @@ make cloud-down                                       # tear down (foundation + 
 ```
 
 Reach the dashboards with `kubectl port-forward` (see [`infra/k8s/README.md`](../k8s/README.md)) —
-no public LoadBalancer, same no-public-ingress posture the VM had. The cluster reads secrets from
-Secret Manager via the CSI driver; an app deploy never re-pushes them.
+no public LoadBalancer, no public ingress. The cluster reads secrets from Secret Manager via the
+CSI driver; an app deploy never re-pushes them.
 
 ## Why two layers (the professional reasons)
 
-- **Least privilege:** the `gha-deployer` SA only gets `compute.admin` + `serviceAccountUser`
-  + `container.admin` + `artifactregistry.writer` + state-bucket object access — exactly what the
-  app layer needs. No IAM/WIF/secret/BigQuery admin.
+- **Least privilege:** the `gha-deployer` SA only gets `compute.admin`, `serviceAccountUser`,
+  `container.admin`, `artifactregistry.writer`, `gkehub.editor` + `gkehub.gatewayEditor`
+  (fleet membership + `kubectl` via Connect Gateway), state-bucket object access, and a
+  `serviceAccountAdmin` **scoped to the single runtime SA** (so the app layer can create the
+  Workload Identity binding) — exactly what the app layer needs. No project-wide IAM/WIF/secret/BigQuery admin.
 - **No self-reference:** the deployer never manages the WIF/SA that authenticate it, so CI can
   apply/destroy the app layer cleanly (and via a GitHub Actions button) without destroying its
   own identity.
