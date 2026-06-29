@@ -72,7 +72,9 @@ GCP_PROJECT = os.getenv("GCP_PROJECT", "realtime-telemetry-gcp")
 BIGQUERY_DATASET = os.getenv("BIGQUERY_DATASET")
 BIGQUERY_ENABLED = bool(BIGQUERY_DATASET)
 if BIGQUERY_ENABLED:
-    SPARK_PACKAGES += ",com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.41.0"
+    # Spark-version-specific artifact (the legacy spark-bigquery-with-dependencies
+    # hits NoSuchMethodError on RowEncoder against Spark 3.5's streaming write path).
+    SPARK_PACKAGES += ",com.google.cloud.spark:spark-3.5-bigquery:0.41.0"
 CHECKPOINT_DIR = os.getenv("CHECKPOINT_DIR", "/tmp/spark-checkpoints/sensor_data")
 DLQ_CHECKPOINT_DIR = os.getenv("DLQ_CHECKPOINT_DIR", CHECKPOINT_DIR + "_dlq")
 
@@ -350,16 +352,31 @@ def write_observability(batch_df, batch_id: int) -> None:
 
 
 def write_to_bigquery(shaped_df: DataFrame, table_id: str, checkpoint_suffix: str):
-    """Stream a shaped DataFrame to a BigQuery table via the Storage Write API.
+    """Stream a shaped DataFrame to a BigQuery table via foreachBatch + the BATCH
+    writer (writeMethod=direct, no temp bucket). The batch writer is more stable
+    than the streaming sink (which hits a RowEncoder incompatibility on Spark 3.5).
 
-    Adds an ``ingest_time`` column and writes with ``writeMethod=direct`` (no temp GCS
-    bucket). Auth is Application Default Credentials = the runtime service account.
+    Best-effort: a BigQuery failure is logged, never raised, so the analytics sink
+    can never take down the Redis / DLQ / observability branches. Auth is ADC =
+    the runtime service account (Workload Identity).
     """
+    table = f"{GCP_PROJECT}.{BIGQUERY_DATASET}.{table_id}"
+
+    def _write_batch(batch_df, batch_id: int) -> None:
+        try:
+            (
+                batch_df.withColumn("ingest_time", current_timestamp())
+                .write.format("bigquery")
+                .option("table", table)
+                .option("writeMethod", "direct")
+                .mode("append")
+                .save()
+            )
+        except Exception as exc:  # noqa: BLE001 — analytics must never crash ingestion
+            logger.error("BigQuery write to %s failed (batch %s): %s", table_id, batch_id, exc)
+
     return (
-        shaped_df.withColumn("ingest_time", current_timestamp())
-        .writeStream.format("bigquery")
-        .option("table", f"{GCP_PROJECT}.{BIGQUERY_DATASET}.{table_id}")
-        .option("writeMethod", "direct")
+        shaped_df.writeStream.foreachBatch(_write_batch)
         .option("checkpointLocation", CHECKPOINT_DIR + checkpoint_suffix)
         .outputMode("append")
         .start()
