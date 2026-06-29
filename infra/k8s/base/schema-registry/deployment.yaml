@@ -13,6 +13,10 @@ spec:
       labels:
         app: schema-registry
     spec:
+      # Stop K8s from injecting <SERVICE>_* env vars. The 'schema-registry' Service
+      # otherwise injects SCHEMA_REGISTRY_PORT=tcp://… which the cp-schema-registry
+      # image maps onto its own `port` config → invalid → crash within seconds.
+      enableServiceLinks: false
       serviceAccountName: telemetry-runtime
       containers:
         - name: schema-registry
