@@ -72,7 +72,14 @@ jobs:
   # Keyless `terraform plan` of the app layer on PRs, posted as a comment. Best-effort:
   # needs the foundation (WIF/deployer) to exist, so it won't block the merge if it can't run.
   plan:
-    if: github.event_name == 'pull_request'
+    # SECURITY: the authenticated plan (WIF → deployer SA) must NOT run for fork PRs.
+    # A fork's OIDC token still carries THIS repo's `repository` claim, so the WIF
+    # condition would pass and `terraform plan` over PR-controlled .tf could execute
+    # code as the deployer. Gate to same-repo PRs only; forks still get validate +
+    # security-scan (no creds) and a "skipped" comment.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     needs: validate
     runs-on: ubuntu-latest
     defaults:
