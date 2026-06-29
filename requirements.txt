@@ -1,10 +1,11 @@
-confluent-kafka==2.14.2
+confluent-kafka[schemaregistry]==2.14.2
 pyspark==3.5.8
 redis==5.3.1
 faker==24.14.1
 python-dotenv==1.2.2
-# Back the Confluent Avro serializer + Schema Registry client (sensor_simulator).
-# requests is required by confluent_kafka.schema_registry but not pulled in by the
-# base confluent-kafka package.
+# The [schemaregistry] extra above pulls the SR-client deps (httpx, Authlib, attrs,
+# cachetools): confluent-kafka 2.14.x imports them at module load for its async/OAuth
+# SR client, even though the simulator uses the plain sync client. fastavro backs the
+# Avro serializer.
 fastavro==1.12.2
 requests==2.34.2
