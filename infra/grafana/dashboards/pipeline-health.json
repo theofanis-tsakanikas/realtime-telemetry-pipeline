@@ -114,7 +114,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus-iot" },
-          "expr": "metrics_executor_JVMHeapMemory_bytes",
+          "expr": "{__name__=~\".*_ExecutorMetrics_JVMHeapMemory_Value\"}",
           "legendFormat": "JVM heap",
           "refId": "A"
         }
@@ -150,13 +150,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus-iot" },
-          "expr": "metrics_executor_MinorGCCount_total",
+          "expr": "{__name__=~\".*_ExecutorMetrics_MinorGCCount_Value\"}",
           "legendFormat": "Minor GC",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus-iot" },
-          "expr": "metrics_executor_MajorGCCount_total",
+          "expr": "{__name__=~\".*_ExecutorMetrics_MajorGCCount_Value\"}",
           "legendFormat": "Major GC",
           "refId": "B"
         }
