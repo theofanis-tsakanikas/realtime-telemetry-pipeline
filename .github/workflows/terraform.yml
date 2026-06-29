@@ -112,7 +112,10 @@ jobs:
 
   # Privileged app-layer apply/destroy — ONLY on manual dispatch, behind the
   # `production` environment (add required reviewers in repo settings for an approval gate).
+  # The display name reflects the chosen action (plan / apply / destroy) so the run
+  # graph reads correctly instead of always showing "deploy".
   deploy:
+    name: ${{ inputs.action }} (app)
     if: github.event_name == 'workflow_dispatch'
     needs: validate
     runs-on: ubuntu-latest
