@@ -1,12 +1,12 @@
 # Dev/test-only dependencies (not installed into the Docker images).
-pytest==9.0.3
+pytest==9.1.1
 pytest-cov==7.1.0
-ruff==0.15.15
+ruff==0.15.20
 # pandas backs the Streamlit app's data layer; required to test app/sensor_data.py.
-pandas==3.0.3
+pandas==3.0.4
 # pandera expresses the cleaned-reading contract declaratively (scripts/contract.py).
 # Pinned to the pandas backend only — kept out of the Spark runtime image on purpose.
 pandera==0.32.0
 # testcontainers powers the Docker-backed integration tests (deselected by default;
 # run with `pytest -m integration`). Needs a running Docker daemon.
-testcontainers==4.8.2
+testcontainers==4.14.2
