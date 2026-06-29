@@ -23,6 +23,9 @@ spec:
         app: spark-processor
     spec:
       serviceAccountName: telemetry-runtime
+      # Group-writable PVC so Spark can write streaming checkpoints (root-owned mount otherwise).
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: spark
           image: europe-west3-docker.pkg.dev/realtime-telemetry-gcp/telemetry/spark:latest
@@ -75,7 +78,7 @@ spec:
             name: spark-metrics
         - name: secrets-store
           csi:
-            driver: secrets-store.csi.k8s.io
+            driver: secrets-store-gke.csi.k8s.io
             readOnly: true
             volumeAttributes:
               secretProviderClass: telemetry-secrets

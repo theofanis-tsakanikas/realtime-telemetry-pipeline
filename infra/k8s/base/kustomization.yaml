@@ -7,6 +7,7 @@ resources:
   - namespace.yaml
   - serviceaccount.yaml
   - secretproviderclass.yaml
+  - secrets-sync/job.yaml
   - kafka/service.yaml
   - kafka/statefulset.yaml
   - schema-registry/deployment.yaml

@@ -18,6 +18,9 @@ spec:
         app: redis
     spec:
       serviceAccountName: telemetry-runtime
+      # Group-writable PVC so Redis can persist to /data on GKE (root-owned mount otherwise).
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: redis
           image: redis/redis-stack:7.4.0-v3
@@ -61,7 +64,7 @@ spec:
       volumes:
         - name: secrets-store
           csi:
-            driver: secrets-store.csi.k8s.io
+            driver: secrets-store-gke.csi.k8s.io
             readOnly: true
             volumeAttributes:
               secretProviderClass: telemetry-secrets

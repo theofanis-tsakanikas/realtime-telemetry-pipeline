@@ -19,6 +19,11 @@ spec:
         app: kafka-broker
     spec:
       serviceAccountName: telemetry-runtime
+      # Make the PVC group-writable so the kafka user (uid 1000) can write its
+      # data dir — GKE mounts the volume root-owned otherwise (the broker's
+      # preflight "is /var/lib/kafka/data writable" check fails without this).
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: kafka
           image: confluentinc/cp-kafka:7.7.1
