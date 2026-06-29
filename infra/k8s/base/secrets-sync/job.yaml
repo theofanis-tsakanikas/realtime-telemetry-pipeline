@@ -44,16 +44,20 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: sync
+          # Official kubectl image is distroless (no shell), so call kubectl
+          # directly via args (the image entrypoint is kubectl). create is fine:
+          # every deploy is a fresh cluster (destroy + apply), so the Secret is
+          # always absent when this runs.
           image: registry.k8s.io/kubectl:v1.31.0
-          command: ["/bin/sh", "-c"]
           args:
-            - |
-              set -e
-              kubectl create secret generic telemetry-secrets -n telemetry \
-                --from-file=redis-password=/mnt/secrets/redis-password \
-                --from-file=grafana-admin-password=/mnt/secrets/grafana-admin-password \
-                --from-file=slack-webhook-url=/mnt/secrets/slack-webhook-url \
-                --dry-run=client -o yaml | kubectl apply -f -
+            - create
+            - secret
+            - generic
+            - telemetry-secrets
+            - --namespace=telemetry
+            - --from-file=redis-password=/mnt/secrets/redis-password
+            - --from-file=grafana-admin-password=/mnt/secrets/grafana-admin-password
+            - --from-file=slack-webhook-url=/mnt/secrets/slack-webhook-url
           volumeMounts:
             - name: secrets-store
               mountPath: /mnt/secrets
