@@ -1,21 +1,36 @@
 version: 2
 
+# Keep Dependabot for the security signal, but quiet: monthly, grouped into one
+# PR per ecosystem, and no major-version bumps (the pinned stack — Spark, PySpark,
+# Python, Redis, Kafka — is intentional; majors are breaking and reviewed by hand).
 updates:
   # Python runtime and dev dependencies
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 5
+    groups:
+      python:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels:
       - "dependencies"
       - "python"
 
-  # Dockerfiles for the simulator and Spark processor
+  # Dockerfiles for the simulator, Spark processor and dbt
   - package-ecosystem: "docker"
     directory: "/docker"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+    groups:
+      docker:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels:
       - "dependencies"
       - "docker"
@@ -24,7 +39,13 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+    groups:
+      ci:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels:
       - "dependencies"
       - "ci"
