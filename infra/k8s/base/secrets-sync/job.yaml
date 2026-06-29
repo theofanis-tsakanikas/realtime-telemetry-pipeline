@@ -1,0 +1,74 @@
+# The GKE-managed Secret Manager CSI add-on mounts secrets as FILES but does not
+# sync them into a Kubernetes Secret (secretObjects is unsupported on the managed
+# driver). So this Job mounts the same CSI volume and creates the telemetry-secrets
+# Secret from the mounted files — keyless (Workload Identity), no values in git.
+# redis / grafana / spark then read it via secretKeyRef. The Job runs once per
+# deploy; the app pods retry (CreateContainerConfigError) until the Secret exists.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: telemetry-secret-writer
+  namespace: telemetry
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: telemetry-secret-writer
+  namespace: telemetry
+subjects:
+  - kind: ServiceAccount
+    name: telemetry-runtime
+    namespace: telemetry
+roleRef:
+  kind: Role
+  name: telemetry-secret-writer
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sync-secrets
+  namespace: telemetry
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app: sync-secrets
+    spec:
+      serviceAccountName: telemetry-runtime
+      restartPolicy: OnFailure
+      containers:
+        - name: sync
+          image: registry.k8s.io/kubectl:v1.31.0
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              kubectl create secret generic telemetry-secrets -n telemetry \
+                --from-file=redis-password=/mnt/secrets/redis-password \
+                --from-file=grafana-admin-password=/mnt/secrets/grafana-admin-password \
+                --from-file=slack-webhook-url=/mnt/secrets/slack-webhook-url \
+                --dry-run=client -o yaml | kubectl apply -f -
+          volumeMounts:
+            - name: secrets-store
+              mountPath: /mnt/secrets
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store-gke.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: telemetry-secrets
