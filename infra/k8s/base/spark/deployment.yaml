@@ -29,6 +29,14 @@ spec:
       containers:
         - name: spark
           image: europe-west3-docker.pkg.dev/realtime-telemetry-gcp/telemetry/spark:latest
+          # The 'bigquery' data source must be resolved at spark-submit time
+          # (--packages); setting spark.jars.packages in-app is too late for the
+          # DataSource classpath. Override the image CMD to add the BQ connector.
+          args:
+            - spark-submit
+            - --packages
+            - org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.5,org.apache.spark:spark-avro_2.12:3.5.5,com.google.cloud.spark:spark-3.5-bigquery:0.41.0
+            - scripts/spark_transform.py
           ports:
             - containerPort: 4040
               name: ui-metrics
