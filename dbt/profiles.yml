@@ -2,9 +2,8 @@
 # (the Makefile/README do this), so nothing needs to live in ~/.dbt.
 #
 # Auth = OAuth / Application Default Credentials: locally `gcloud auth
-# application-default login`, on the VM/GKE the attached runtime service account
-# (telemetry-stack-vm@...) which already holds bigquery.dataEditor + jobUser.
-# No service-account key files anywhere.
+# application-default login`, on GKE the runtime service account via Workload
+# Identity (holds bigquery.dataEditor + jobUser). No service-account key files anywhere.
 telemetry:
   target: dev
   outputs:
