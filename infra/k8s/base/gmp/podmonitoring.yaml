@@ -11,6 +11,9 @@ spec:
     matchLabels:
       app: spark-processor
   endpoints:
+    # Trailing slash is required: Spark's PrometheusServlet 302-redirects
+    # /metrics/prometheus → /metrics/prometheus/, and GMP does not follow
+    # redirects (so the unslashed path scrapes nothing).
     - port: ui-metrics
-      path: /metrics/prometheus
+      path: /metrics/prometheus/
       interval: 30s
