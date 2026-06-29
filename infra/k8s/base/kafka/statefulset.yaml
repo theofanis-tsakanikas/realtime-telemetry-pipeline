@@ -37,8 +37,11 @@ spec:
               value: "1"
             - name: KAFKA_PROCESS_ROLES
               value: "broker,controller"
+            # Single node = its own controller. Use localhost so the broker can
+            # reach the controller during startup, before the headless Service
+            # publishes the pod's DNS (otherwise: UnknownHostException: kafka-broker).
             - name: KAFKA_CONTROLLER_QUORUM_VOTERS
-              value: "1@kafka-broker:29093"
+              value: "1@localhost:29093"
             - name: KAFKA_CONTROLLER_LISTENER_NAMES
               value: "CONTROLLER"
             - name: CLUSTER_ID

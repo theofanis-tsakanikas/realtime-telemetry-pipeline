@@ -9,6 +9,9 @@ metadata:
     app: kafka-broker
 spec:
   clusterIP: None
+  # Publish the pod's DNS even before it is Ready, so kafka-broker:9092 resolves
+  # during the broker's own startup (it is not Ready until the broker is up).
+  publishNotReadyAddresses: true
   selector:
     app: kafka-broker
   ports:
