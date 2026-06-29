@@ -28,6 +28,16 @@ data/logs/*
 !data/checkpoints/.gitkeep
 !data/logs/.gitkeep
 
+# === Image archive (kept locally, never committed) ===
+# Old loose screenshots + the full raw recording set live under images/archive/.
+# Only the curated, renamed screenshots in images/ (root) are committed to the README.
+images/archive/
+
+# === Promo / video production (kept locally, never committed) ===
+# Raw Screen Studio recordings (multi-GB), shot lists, and the production guide are
+# personal working files for the demo video — not part of the shipped project.
+promo/
+
 # === OS specifics ===
 .DS_Store
 Thumbs.db
