@@ -19,10 +19,10 @@ This project simulates a fleet of IoT environmental sensors and processes their 
 
 It runs two ways from a single codebase:
 
-- 💻 **Locally** — the full stack on **Docker Compose**, for development and the test suite.
+- 💻 **Locally** — the full **streaming** stack on **Docker Compose** (Kafka, Spark, Redis, Grafana, with the data-quality & drift observability), for development and the test suite. *The BigQuery + dbt analytics layer is cloud-only.*
 - ☁️ **In the cloud** — a **cloud-native, fully keyless, 100% Infrastructure-as-Code** deployment on **GKE Autopilot**, provisioned with **Terraform** and shipped by **GitHub Actions** (one-button deploy, zero stored credentials).
 
-> 🌍 This is the **GCP** half of a multi-cloud portfolio. Its companion, [`s3-spark-pg-etl`](https://github.com/theofanis-tsakanikas), provisions the same keyless-OIDC philosophy on **AWS**.
+> 🌍 This is the **GCP** half of a multi-cloud portfolio. Its companion, [`contract-driven-data-pipeline`](https://github.com/theofanis-tsakanikas/contract-driven-data-pipeline), applies the same keyless-OIDC philosophy on **AWS**.
 
 ---
 
@@ -61,7 +61,7 @@ flowchart LR
   R --> G["Grafana<br/>live dashboards"]
   BQ --> DBT["dbt marts<br/>CronJob every 2 min"]
   DBT --> LS["Looker Studio"]
-  SP -. /metrics .-> GMP["Managed Prometheus"] --> G
+  SP -. /metrics .-> GMP["Managed Prometheus"] --> CM["Cloud Monitoring"]
   G -->|"drift > 3σ"| SLACK["Slack"]
 ```
 
@@ -94,7 +94,7 @@ This is a portfolio project built to demonstrate **end-to-end, cloud-native data
 * **Analytics marts:** dbt staging + marts on BigQuery, refreshed every 2 minutes by a Kubernetes CronJob.
 * **Live observability:** Per-batch data-quality + drift metrics on a dedicated Grafana row, plus Spark JVM/throughput metrics via Managed Prometheus.
 * **Drift alerting:** Provisioned Grafana alert rules push a Slack notification when any metric drifts beyond 3σ.
-* **Two deployment targets:** Docker Compose locally; GKE Autopilot in the cloud — same manifests, same code.
+* **Two deployment targets:** the same application code and container images run locally via Docker Compose and in the cloud on GKE Autopilot (Kubernetes manifests).
 
 ---
 
@@ -103,22 +103,34 @@ This is a portfolio project built to demonstrate **end-to-end, cloud-native data
 A walk through the running stack, stage by stage.
 
 ### 1. Kafka — schema-governed ingestion
-Avro-encoded sensor readings landing on the `sensor_data` topic, browsable in Kafka-UI.
+Avro-encoded sensor readings land on the `sensor_data` topic, browsable in Kafka-UI (note the `SchemaRegistry` value serde).
 
-![Kafka messages](./images/kafka-messages.png)
+![sensor_data topic — Avro](./images/kafka-messages.png)
+
+Their structure is governed by the registered Avro schema (`SensorReading`) in the Schema Registry:
+
+![Schema Registry — SensorReading](./images/kafka-schema.png)
+
+Readings that fail validation aren't dropped — they're quarantined to the `sensor_data_rejected` dead-letter topic, each tagged with its `rejection_reason`:
+
+![sensor_data_rejected — dead-letter topic](./images/kafka-rejected.png)
 
 ### 2. Spark — Structured Streaming
-The Spark UI showing the streaming query processing micro-batches off Kafka.
+The Spark UI's **Structured Streaming** tab — the active streaming queries processing micro-batches from Kafka, with their input/processing rates and latest batch IDs.
 
 ![Spark Structured Streaming](./images/spark-streaming.png)
 
 ### 3. Redis TimeSeries — the hot path
-`TS.MRANGE` across all 5 sensors, charted in RedisInsight — the low-latency serving store Grafana reads from.
+`TS.MRANGE` across all 5 sensors' temperature, charted in RedisInsight — the low-latency serving store Grafana reads from.
 
-![Redis TimeSeries](./images/redis-timeseries.png)
+![Redis — TS.MRANGE chart](./images/redis-timeseries.png)
+
+Underneath: 15 labelled sensor series (5 sensors × 3 metrics) alongside the `dq:*` and `drift:*` observability series the job publishes each batch.
+
+![Redis — TimeSeries keys](./images/redis-keys.png)
 
 ### 4. Grafana — live sensor dashboard
-Network-wide temperature, per-sensor gauges, and a pressure trend, auto-refreshing every 5 seconds.
+All-sensors temperature and humidity, plus **Sensor 1**'s live gauges (current temperature/humidity) and pressure trend — auto-refreshing every 5 seconds.
 
 ![Grafana — IoT Sensors](./images/grafana-sensors.png)
 
@@ -147,7 +159,7 @@ The streaming job lands two raw tables in BigQuery (`telemetry.readings`, `telem
 | **Staging** | `stg_readings`, `stg_rejections` — typed, renamed views over the raw landing tables |
 | **Marts** | `sensor_minutely` (per-sensor/min aggregates), `accept_rate_minutely`, `rejections_by_reason`, `reading_volume` |
 
-In the cloud, a Kubernetes **CronJob runs `dbt build` every 2 minutes**, so the marts track the live stream; **Looker Studio** sits on top for BI-style exploration. Locally, the same models run via `make dbt-build`.
+In the cloud, a Kubernetes **CronJob runs `dbt build` every 2 minutes**, so the marts track the live stream; **Looker Studio** sits on top for BI-style exploration. The same models also run from your laptop via `make dbt-build` — dbt-bigquery targets BigQuery, so it needs GCP credentials (there's no local warehouse).
 
 ![BigQuery — readings table](./images/bigquery-readings.png)
 
@@ -161,7 +173,7 @@ Observability is treated as a first-class output of the pipeline, not an afterth
 
 ![Grafana — Data Quality & Drift](./images/grafana-data-quality.png)
 
-**Spark internals (system-level).** The Spark driver exposes Prometheus metrics; in the cloud **GKE Managed Service for Prometheus (GMP)** scrapes them, so streaming throughput, micro-batch latency, and JVM heap/GC are queryable from Cloud Monitoring and Grafana.
+**Spark internals (system-level).** The Spark driver exposes Prometheus metrics; in the cloud **GKE Managed Service for Prometheus (GMP)** scrapes them into **Cloud Monitoring**, where streaming throughput, micro-batch latency, and JVM heap/GC are queryable. (Locally, a self-hosted Prometheus backs the same Grafana **Pipeline Health** dashboard.)
 
 **Drift → Slack.** Grafana alerting is fully provisioned ([`infra/grafana/provisioning/alerting/`](infra/grafana/provisioning/alerting/)): when any metric drifts past **3σ**, the rule fires and posts to Slack — with a matching **resolved** message when it clears.
 
@@ -224,7 +236,7 @@ The result: the full pipeline running as pods on GKE Autopilot…
     <td align="center"><img src="./images/secret-manager.png" width="100%"><br><sub>Secret Manager</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="./images/connect-gateway.png" width="100%"><br><sub>Fleet + Connect Gateway</sub></td>
+    <td align="center"><img src="./images/connect-gateway.png" width="100%"><br><sub>GKE Fleet dashboard — 1 cluster, healthy</sub></td>
     <td align="center"><img src="./images/cloud-monitoring.png" width="100%"><br><sub>Cloud Monitoring (GMP) dashboards</sub></td>
   </tr>
 </table>
@@ -246,7 +258,7 @@ make cloud-down    # destroy the app layer (foundation + BigQuery + secrets pers
 
 ## 💻 Local Development (Docker Compose)
 
-The full stack also runs locally — ideal for development and to run the test suite without any cloud.
+The full **streaming** stack also runs locally — ideal for development and to run the test suite without any cloud. (The BigQuery + dbt analytics layer is cloud-only — it targets managed BigQuery.)
 
 ```bash
 # 1. One-time setup: venv, deps, data dirs, and a .env from the template
