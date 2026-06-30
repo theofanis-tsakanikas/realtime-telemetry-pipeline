@@ -173,6 +173,10 @@ Observability is treated as a first-class output of the pipeline, not an afterth
 
 ![Grafana — Data Quality & Drift](./images/grafana-data-quality.png)
 
+And here's the moment it matters — a sensor's drift z-score erupts to **5.5σ**, crosses the **3σ** control limit, and the provisioned alert rule's condition (`abs(z) is above 3`) flips to **Firing**. Every reading was still *inside* its valid range; only the statistical drift gave it away:
+
+![Grafana — drift z-score crossing 3σ, alert firing](./images/drift-alert.png)
+
 **Spark internals (system-level).** The Spark driver exposes Prometheus metrics; in the cloud **GKE Managed Service for Prometheus (GMP)** scrapes them into **Cloud Monitoring**, where streaming throughput, micro-batch latency, and JVM heap/GC are queryable. (Locally, a self-hosted Prometheus backs the same Grafana **Pipeline Health** dashboard.)
 
 **Drift → Slack.** Grafana alerting is fully provisioned ([`infra/grafana/provisioning/alerting/`](infra/grafana/provisioning/alerting/)): when any metric drifts past **3σ**, the rule fires and posts to Slack — with a matching **resolved** message when it clears.
