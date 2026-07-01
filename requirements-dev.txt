@@ -6,7 +6,7 @@ ruff==0.15.20
 pandas==3.0.4
 # pandera expresses the cleaned-reading contract declaratively (scripts/contract.py).
 # Pinned to the pandas backend only — kept out of the Spark runtime image on purpose.
-pandera==0.32.0
+pandera==0.32.1
 # testcontainers powers the Docker-backed integration tests (deselected by default;
 # run with `pytest -m integration`). Needs a running Docker daemon.
 testcontainers==4.14.2
