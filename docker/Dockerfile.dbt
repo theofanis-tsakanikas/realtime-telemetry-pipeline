@@ -2,7 +2,7 @@
 # images). Run as a K8s CronJob on a schedule to refresh the BigQuery marts.
 # Auth is OAuth / Application Default Credentials via Workload Identity — no key
 # files, no profiles secrets (profiles.yml is env-var driven with defaults).
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 WORKDIR /dbt
 
