@@ -117,13 +117,34 @@ jobs:
               issue_number: context.issue.number, owner: context.repo.owner,
               repo: context.repo.repo, body });
 
-  # Privileged app-layer apply/destroy — ONLY on manual dispatch, behind the
-  # `production` environment (add required reviewers in repo settings for an approval gate).
-  # The display name reflects the chosen action (plan / apply / destroy) so the run
-  # graph reads correctly instead of always showing "deploy".
-  deploy:
-    name: ${{ inputs.action }} (app)
-    if: github.event_name == 'workflow_dispatch'
+  # One job PER workflow_dispatch action, so the run graph reads clearly ("plan" /
+  # "apply" / "destroy") instead of a single generic "deploy" node. Only the chosen
+  # action runs; the others are skipped. apply/destroy are gated by the `production`
+  # environment (add required reviewers in repo settings for an approval gate).
+
+  # plan (app) — read-only preview of the app-layer changes.
+  plan-app:
+    name: plan (app)
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'plan'
+    needs: validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform/app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform init
+      - run: terraform plan -no-color
+
+  # apply (app) — bring up the infra (VPC + GKE Autopilot), then deploy the stack.
+  apply:
+    name: apply (app)
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
     needs: validate
     runs-on: ubuntu-latest
     environment: production
@@ -137,47 +158,44 @@ jobs:
       - name: Terraform init
         working-directory: infra/terraform/app
         run: terraform init
-
-      - name: Terraform plan
-        if: inputs.action == 'plan'
-        working-directory: infra/terraform/app
-        run: terraform plan -no-color
-
-      # --- apply: bring up the infra, then deploy the stack onto the cluster ---
       - name: Terraform apply (VPC + GKE Autopilot)
-        if: inputs.action == 'apply'
         working-directory: infra/terraform/app
         run: terraform apply -auto-approve -no-color
-
       - name: Set up gcloud + kubectl
-        if: inputs.action == 'apply'
         uses: google-github-actions/setup-gcloud@v2
         with:
           install_components: kubectl,gke-gcloud-auth-plugin
-
       - name: kubeconfig via Connect Gateway
-        if: inputs.action == 'apply'
         run: gcloud container fleet memberships get-credentials telemetry-autopilot --project realtime-telemetry-gcp
-
       - name: Deploy the stack manifests
-        if: inputs.action == 'apply'
         run: kubectl kustomize --load-restrictor=LoadRestrictionsNone infra/k8s/base | kubectl apply -f -
 
-      # --- destroy: release the PVs (best-effort), then tear down the infra ---
+  # destroy (app) — best-effort kubectl delete (releases PVs), then terraform destroy → ~$0.
+  destroy:
+    name: destroy (app)
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform init
+        working-directory: infra/terraform/app
+        run: terraform init
       - name: Set up gcloud + kubectl
-        if: inputs.action == 'destroy'
         uses: google-github-actions/setup-gcloud@v2
         with:
           install_components: kubectl,gke-gcloud-auth-plugin
-
       - name: Delete the stack manifests (best-effort — releases PVs)
-        if: inputs.action == 'destroy'
         continue-on-error: true
         run: |
           gcloud container fleet memberships get-credentials telemetry-autopilot --project realtime-telemetry-gcp || exit 0
           kubectl kustomize --load-restrictor=LoadRestrictionsNone infra/k8s/base | kubectl delete --ignore-not-found -f - || true
-
       - name: Terraform destroy
-        if: inputs.action == 'destroy'
         working-directory: infra/terraform/app
         run: terraform destroy -auto-approve -no-color
