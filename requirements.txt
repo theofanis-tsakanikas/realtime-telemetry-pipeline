@@ -1,5 +1,5 @@
 confluent-kafka[schemaregistry]==2.15.0
-pyspark==3.5.8
+pyspark==3.5.9
 redis==5.3.1
 faker==24.14.1
 python-dotenv==1.2.2
