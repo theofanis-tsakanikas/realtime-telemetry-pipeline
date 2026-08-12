@@ -386,37 +386,41 @@ assertions in CI.
 
 ## Cost
 
-**Nothing is standing today.** The app layer is deployed for a demo and destroyed; what follows is
-what it would cost *while it stands* — list-price estimates for `europe-west1`, not a measured bill.
-
-The two-layer split is the cost design, and the table makes it visible:
+**Nothing is standing today.** The app layer is deployed for a demo and destroyed. What follows is
+what it would cost *while it stands* — list prices for `europe-west1`, **verified 2026-08-12**.
 
 | Resource | Spec | Rate | Monthly |
 |---|---|---|---:|
 | **`app/` — ephemeral** | | | |
-| GKE Autopilot — cluster fee | 1 regional cluster | $0.10/hr | $73.00 |
-| GKE Autopilot — pod resources | Kafka, Spark, Redis, Grafana, simulator, dbt CronJob ≈ 3 vCPU / 6 GiB requested | ~$0.0445/vCPU-hr · ~$0.0049/GiB-hr | ~$119 |
+| GKE Autopilot — cluster fee | 1 regional cluster, **less the $74.40/mo free-tier credit** | $0.10/hr | **$0.00** |
+| GKE Autopilot — pod resources | Kafka, Spark, Redis, Grafana, simulator, dbt CronJob ≈ 3 vCPU / 6 GiB requested | $0.0445/vCPU-hr · $0.0049/GiB-hr | $118.92 |
 | Cloud NAT | 1 gateway + egress | $0.044/hr + data | ~$33 |
 | **`foundation/` — persistent** | | | |
-| BigQuery — storage | 2 tables, day-partitioned, **30-day expiry**, ~2 GB steady state | $0.02/GB-mo | ~$0.04 |
+| BigQuery — storage | 2 tables, day-partitioned, **30-day expiry**, ~2 GB | $0.02/GB-mo | ~$0.04 |
 | BigQuery — queries | dbt build every 2 min, small scans | $5.00/TB (1 TB/mo free) | $0.00 |
 | Artifact Registry | 3 images, ~2 GB | $0.10/GB-mo | $0.20 |
 | Secret Manager | 1 secret | $0.06/secret-mo | $0.06 |
 | GCS — Terraform state | < 1 MB | $0.020/GB-mo | < $0.01 |
 | WIF pool, service accounts, fleet membership | — | free | $0.00 |
-| **Total — app layer up** | | | **≈ $225 / month** |
+| **Total — app layer up** | | | **≈ $152 / month** |
 | **Total — after `make cloud-down`** | foundation only | | **≈ $0.30 / month** |
 
-**That second total is the whole design.** One action removes the app layer; the foundation —
-identity, secrets, registry, BigQuery — survives at roughly thirty cents, so the next deploy is one
-button rather than a bootstrap. Nothing about the pipeline needs to keep running for the project to
-be reproducible.
+**The cluster fee is effectively zero, and that is worth knowing rather than assuming.** GKE grants a
+**$74.40/month free-tier credit per billing account** against cluster management fees, which fully
+covers this project's single cluster. The $0.10/hour charge is real; it simply lands inside the
+credit. It would reappear the moment a second cluster existed in the same account — so the figure to
+plan with is $73, and the figure to expect here is $0.
+
+**The second total is the whole design.** One action removes the app layer; the foundation — identity,
+secrets, registry, BigQuery — survives at roughly thirty cents, so the next deploy is one button
+rather than a bootstrap. Nothing about the pipeline needs to keep running for the project to be
+reproducible.
 
 BigQuery keeps itself bounded: both landing tables are day-partitioned with a **30-day expiry**, so
 the demo cannot accumulate storage indefinitely even if left alone. The local Docker stack costs
 nothing beyond the ~8 GB of RAM it wants.
 
-*Rates are list prices and change; verify before quoting.*
+*Rates verified 2026-08-12 against public pricing sources; verify before quoting.*
 
 ---
 
