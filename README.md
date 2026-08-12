@@ -386,17 +386,37 @@ assertions in CI.
 
 ## Cost
 
-**Designed to be ephemeral, and that is the cost control.** The persistent `foundation/` layer —
-identity, secrets, Artifact Registry, the BigQuery dataset — costs approximately cents while idle.
-The GKE Autopilot workloads are the only real spend, and `make cloud-down` (or the destroy action)
-removes them.
+**Nothing is standing today.** The app layer is deployed for a demo and destroyed; what follows is
+what it would cost *while it stands* — list-price estimates for `europe-west1`, not a measured bill.
 
-BigQuery keeps the bill bounded on its own: both landing tables are **day-partitioned with a 30-day
-expiry**, so the demo cannot accumulate storage indefinitely. The local Docker stack costs nothing
-beyond the ~8 GB of RAM it wants.
+The two-layer split is the cost design, and the table makes it visible:
 
-There is no always-on cluster in the design. Between demos, the standing cost is the foundation and
-whatever is left in BigQuery and Artifact Registry.
+| Resource | Spec | Rate | Monthly |
+|---|---|---|---:|
+| **`app/` — ephemeral** | | | |
+| GKE Autopilot — cluster fee | 1 regional cluster | $0.10/hr | $73.00 |
+| GKE Autopilot — pod resources | Kafka, Spark, Redis, Grafana, simulator, dbt CronJob ≈ 3 vCPU / 6 GiB requested | ~$0.0445/vCPU-hr · ~$0.0049/GiB-hr | ~$119 |
+| Cloud NAT | 1 gateway + egress | $0.044/hr + data | ~$33 |
+| **`foundation/` — persistent** | | | |
+| BigQuery — storage | 2 tables, day-partitioned, **30-day expiry**, ~2 GB steady state | $0.02/GB-mo | ~$0.04 |
+| BigQuery — queries | dbt build every 2 min, small scans | $5.00/TB (1 TB/mo free) | $0.00 |
+| Artifact Registry | 3 images, ~2 GB | $0.10/GB-mo | $0.20 |
+| Secret Manager | 1 secret | $0.06/secret-mo | $0.06 |
+| GCS — Terraform state | < 1 MB | $0.020/GB-mo | < $0.01 |
+| WIF pool, service accounts, fleet membership | — | free | $0.00 |
+| **Total — app layer up** | | | **≈ $225 / month** |
+| **Total — after `make cloud-down`** | foundation only | | **≈ $0.30 / month** |
+
+**That second total is the whole design.** One action removes the app layer; the foundation —
+identity, secrets, registry, BigQuery — survives at roughly thirty cents, so the next deploy is one
+button rather than a bootstrap. Nothing about the pipeline needs to keep running for the project to
+be reproducible.
+
+BigQuery keeps itself bounded: both landing tables are day-partitioned with a **30-day expiry**, so
+the demo cannot accumulate storage indefinitely even if left alone. The local Docker stack costs
+nothing beyond the ~8 GB of RAM it wants.
+
+*Rates are list prices and change; verify before quoting.*
 
 ---
 
