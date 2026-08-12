@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Lint and tests only — this job needs to read the code and nothing else.
+permissions:
+  contents: read
+
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest

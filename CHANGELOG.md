@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`SECURITY.md`** — scope, reporting, the hardened controls (no service-account key exists at any
+  of the three boundaries; secrets reach pods through the Secrets Store CSI provider and never enter
+  a manifest; the control plane is private), and eight known limitations each paired with the control
+  a real deployment would use instead. The first is the one that matters: the Workload Identity
+  Federation attribute condition is scoped to the repository, not to a branch or environment, so any
+  workflow in this repository can federate.
+- **`permissions: contents: read`** on the CI workflow, which had no `permissions:` block and so
+  inherited the repository default. It lints and tests; it needs nothing else.
+
+### Changed
+- **README rewritten to the portfolio README standard.** No screenshot was removed — all 24 images
+  are still referenced. Eight two-column pairs (from one) and a visible caption on every image (from
+  six). The drift alert firing at 5.5σ moved to a new `Status` section on the first screen, because
+  it is the single image that explains why the project exists. Added `Testing` (102 tests, and the
+  four CI gates), `What this does not do`, `Cost`, `Docs`, `Security` and `License`; removed the
+  emoji headings.
+- **Dependabot version updates switched off** (`open-pull-requests-limit: 0`), matching the rest of
+  the portfolio, with the `/app` and the two Terraform ecosystems now declared. Security updates stay
+  enabled.
+
+
+### Added
 - Topic partitioning (`KAFKA_PARTITIONS`, default 3) so Spark Structured Streaming consumes the stream in parallel; messages keyed by `sensor_id` preserve per-sensor ordering within a partition.
 - Redis authentication (`REDIS_PASSWORD`, applied to the broker via `--requirepass`, the Spark sink, and the provisioned Grafana datasource) and a configurable Grafana admin password (`GRAFANA_ADMIN_PASSWORD`).
 - README "Production Considerations" section honestly documenting the demo-vs-production gaps (HA, SASL/TLS, resource footprint, real data source, durability).
