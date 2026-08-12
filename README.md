@@ -1,54 +1,92 @@
-# 📡 Real-Time Telemetry Pipeline — Streaming Sensor Data Quality, Drift & Cloud Analytics
-
-[![CI](https://github.com/theofanis-tsakanikas/realtime-telemetry-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/theofanis-tsakanikas/realtime-telemetry-pipeline/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-![Apache Kafka](https://img.shields.io/badge/Apache%20Kafka-231F20?logo=apachekafka&logoColor=white)
-![Apache Spark](https://img.shields.io/badge/Apache%20Spark%203.5-E25A1C?logo=apachespark&logoColor=white)
-![Redis](https://img.shields.io/badge/Redis%20Stack-DC382D?logo=redis&logoColor=white)
-![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)
-![BigQuery](https://img.shields.io/badge/BigQuery-669DF6?logo=googlebigquery&logoColor=white)
-![dbt](https://img.shields.io/badge/dbt-FF694B?logo=dbt&logoColor=white)
-![GKE Autopilot](https://img.shields.io/badge/GKE%20Autopilot-326CE5?logo=kubernetes&logoColor=white)
-![Terraform](https://img.shields.io/badge/Terraform-7B42BC?logo=terraform&logoColor=white)
-
 <p align="center">
-  <img src="./images/banner.png" alt="Real-Time Telemetry Pipeline" width="100%">
+  <img src="./images/banner.png" alt="Real-Time Telemetry Pipeline — streaming sensor data quality, drift and cloud analytics" width="100%">
 </p>
 
-This project simulates a fleet of IoT environmental sensors and processes their telemetry **in real time**. Readings stream through **Apache Kafka** (Avro + Schema Registry), are validated and transformed by **Spark Structured Streaming**, and fan out to two sinks: **Redis TimeSeries** for low-latency live serving and **BigQuery** for analytics. **dbt** builds analytical marts on top of BigQuery, **Grafana** visualises the live data, and **statistical drift** raises a **Slack** alert the moment a sensor silently miscalibrates.
+# Real-Time Telemetry Pipeline
 
-It runs two ways from a single codebase:
+<p align="center">
+  <a href="https://github.com/theofanis-tsakanikas/realtime-telemetry-pipeline/actions/workflows/ci.yml"><img src="https://github.com/theofanis-tsakanikas/realtime-telemetry-pipeline/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12">
+  <img src="https://img.shields.io/badge/IaC-Terraform-7B42BC?logo=terraform&logoColor=white" alt="Terraform">
+  <br>
+  <img src="https://img.shields.io/badge/Apache%20Kafka-KRaft%20+%20Avro-231F20?logo=apachekafka&logoColor=white" alt="Apache Kafka">
+  <img src="https://img.shields.io/badge/Apache%20Spark%203.5-Structured%20Streaming-E25A1C?logo=apachespark&logoColor=white" alt="Apache Spark 3.5">
+  <img src="https://img.shields.io/badge/Redis%20Stack-TimeSeries-DC382D?logo=redis&logoColor=white" alt="Redis TimeSeries">
+  <img src="https://img.shields.io/badge/BigQuery-analytics-669DF6?logo=googlebigquery&logoColor=white" alt="BigQuery">
+  <img src="https://img.shields.io/badge/dbt-marts-FF694B?logo=dbt&logoColor=white" alt="dbt">
+  <img src="https://img.shields.io/badge/GKE%20Autopilot-private-326CE5?logo=kubernetes&logoColor=white" alt="GKE Autopilot">
+  <br>
+  <img src="https://img.shields.io/badge/tests-102-2ea44f" alt="102 tests">
+  <img src="https://img.shields.io/badge/credentials%20stored-zero-2ea44f" alt="zero stored credentials">
+  <img src="https://img.shields.io/badge/drift%20alert-3σ%20→%20Slack-2ea44f" alt="3-sigma drift alert to Slack">
+  <img src="https://img.shields.io/badge/IaC-100%25%20Terraform-2ea44f" alt="100% Terraform">
+</p>
 
-- 💻 **Locally** — the full **streaming** stack on **Docker Compose** (Kafka, Spark, Redis, Grafana, with the data-quality & drift observability), for development and the test suite. *The BigQuery + dbt analytics layer is cloud-only.*
-- ☁️ **In the cloud** — a **cloud-native, fully keyless, 100% Infrastructure-as-Code** deployment on **GKE Autopilot**, provisioned with **Terraform** and shipped by **GitHub Actions** (one-button deploy, zero stored credentials).
+**A streaming pipeline that catches the sensor failure a threshold filter cannot see — a reading
+that is still inside its valid range and quietly wrong.**
+*Kafka · Avro + Schema Registry · Spark Structured Streaming · Redis TimeSeries · BigQuery · dbt · Grafana · GKE Autopilot · Terraform*
 
-> 🌍 This is the **GCP** half of a multi-cloud portfolio. Its companion, [`contract-driven-data-pipeline`](https://github.com/theofanis-tsakanikas/contract-driven-data-pipeline), applies the same keyless-OIDC philosophy on **AWS**.
+> This is the **GCP** half of a multi-cloud portfolio. Its companion,
+> [`contract-driven-data-pipeline`](https://github.com/theofanis-tsakanikas/contract-driven-data-pipeline),
+> applies the same keyless philosophy on **AWS**.
 
 ---
 
-## 📑 Table of Contents
+## The problem
 
-- [Architecture](#-architecture)
-- [What This Demonstrates](#-what-this-demonstrates)
-- [Key Features](#-key-features)
-- [The Live Pipeline](#-the-live-pipeline)
-- [Data Engineering & Transformation (PySpark)](#-data-engineering--transformation-pyspark)
-- [Analytics — BigQuery + dbt](#-analytics--bigquery--dbt)
-- [Observability & Alerting](#-observability--alerting)
-- [Cloud-Native Deployment (GCP)](#-cloud-native-deployment-gcp)
-- [Local Development (Docker Compose)](#-local-development-docker-compose)
-- [Project Structure](#-project-structure)
-- [Tests & Code Quality](#-tests--code-quality)
-- [Production Considerations](#-production-considerations)
-- [License](#-license)
+Every data-quality pipeline catches the obvious failure: a null, a string where a number belongs, a
+pressure reading of 2500 hPa. Those are easy — a range filter finds them and a dead-letter queue
+keeps them.
 
-> For a deeper engineering reference — service ports, end-to-end data flow, test coverage, and known failure modes — see [CLAUDE.md](./CLAUDE.md).
+The failure that costs money is the one that passes. A sensor drifts 5 °C high after a knock or a
+recalibration, and **every single reading it emits is still inside the valid range**. Nothing is
+rejected. No alert fires. The dashboards look healthy, the analytics are quietly wrong, and the
+problem surfaces weeks later as a decision nobody can explain.
+
+This pipeline treats that as the interesting case. Beyond the range filter, each micro-batch's
+per-metric mean is z-tested against the sensor's commissioning baseline — so a fleet reading
+plausibly but consistently high raises a **3σ Slack alert** while every individual value still looks
+fine.
+
+## Status
+
+The full stack runs two ways from one codebase: locally on Docker Compose for development and the
+test suite, and on **GKE Autopilot** in GCP — 100% Terraform, deployed by GitHub Actions with
+**Workload Identity Federation**, with no service-account key anywhere. It is designed to be
+ephemeral: deploy for a demo, then tear the app layer down.
+
+Here is the moment the whole project exists for. A sensor's drift z-score erupts to **5.5σ**, crosses
+the 3σ control limit, and the provisioned alert rule flips to **Firing** — while every reading it
+produced was still *inside* its valid range:
+
+![Grafana — drift z-score crossing 3σ, alert firing](./images/drift-alert.png)
+
+<sub><b>Silent drift, caught</b> — the range filter rejected nothing, because there was nothing out of range to reject. Only the statistical comparison against the commissioning baseline gave it away.</sub>
+
+A single declared data contract ([`scripts/metrics_spec.py`](scripts/metrics_spec.py)) is the source
+of truth for the validation ranges, the dead-letter routing **and** the drift baselines — the same
+numbers guard every stage, so they cannot disagree.
 
 ---
 
-## 🏗️ Architecture
+## Contents
 
-The banner above is the visual overview. In data-flow terms:
+| | |
+|---|---|
+| **[Architecture](#architecture)** | Producer → broker → stream processor → two sinks → dashboards |
+| **[The live pipeline](#the-live-pipeline)** | Kafka with Avro, Spark, Redis TimeSeries, Grafana — stage by stage |
+| **[Data quality and drift](#data-quality-and-drift)** | The dead-letter queue, and the z-test a threshold cannot replace |
+| **[Analytics — BigQuery and dbt](#analytics--bigquery-and-dbt)** | Landing tables into tested marts, refreshed in-cluster |
+| **[Cloud-native deployment](#cloud-native-deployment)** | Two Terraform layers, keyless end to end, a private control plane |
+| **[Local development](#local-development)** · **[Quickstart](#quickstart)** | Docker Compose, and the Makefile front door |
+| **[Testing](#testing)** · **[Repository layout](#repository-layout)** | What the 102 tests cover and what they do not |
+| **[What this does not do](#what-this-does-not-do)** · **[Cost](#cost)** | The honest limits, and how the bill returns to near zero |
+| **[Docs](#docs)** · **[Security](#security)** · **[License](#license)** | |
+
+---
+
+## Architecture
 
 ```mermaid
 flowchart LR
@@ -65,308 +103,318 @@ flowchart LR
   G -->|"drift > 3σ"| SLACK["Slack"]
 ```
 
-A single declared data contract ([`scripts/metrics_spec.py`](scripts/metrics_spec.py)) is the source of truth for validation, the dead-letter routing, **and** the drift baselines — the same ranges guard every stage of the pipeline.
+The shape worth noticing is the **dual sink**: the same validated stream lands in Redis for
+sub-second serving and in BigQuery for analytics — the classic hot/cold split, written from one job.
+The BigQuery write is deliberately best-effort inside `foreachBatch`: its errors are logged, never
+raised, because **analytics must not be able to take down ingestion**.
 
 ---
 
-## 🎯 What This Demonstrates
+## The live pipeline
 
-This is a portfolio project built to demonstrate **end-to-end, cloud-native data engineering** across a modern streaming + analytics stack:
+### Kafka — schema-governed ingestion
 
-- **Streaming architecture:** A decoupled producer → broker → stream-processor → store → dashboard pipeline where each stage scales independently, with **Avro on the wire** governed by a **Schema Registry**.
-- **Stateful stream processing:** Spark Structured Streaming with micro-batches, checkpointing for fault tolerance, and a connection-per-partition Redis sink pattern.
-- **Dual-sink design:** The same validated stream lands in **Redis** (hot path, sub-second serving) and **BigQuery** (cold path, analytics) — the classic serving/analytics split.
-- **Data quality engineering:** A declared contract is the single source of truth; bad readings are quarantined to a **dead-letter topic** with a reason, and per-batch quality metrics (accept rate, rejections by reason) are published live — you can *see* data quality, not just trust it.
-- **Statistical drift detection:** Beyond the range filter, each micro-batch's per-metric mean is z-tested against its commissioning baseline. This catches a sensor reading 5 °C high **even though every reading is still in valid range** — silent drift a threshold filter can't see — and fires a **3σ Slack alert**.
-- **Analytics modelling:** **dbt** turns the raw BigQuery landing tables into clean, tested **marts** (per-minute aggregates), refreshed on a schedule in-cluster.
-- **Cloud-native & keyless:** Runs on **GKE Autopilot**, **100% Terraform**, deployed by **GitHub Actions** with **Workload Identity Federation** — no service-account keys anywhere. Pods authenticate to Google APIs via **Workload Identity**; kubectl reaches a **private** control plane via **Connect Gateway**.
-- **Production-minded tooling:** Managed Prometheus metrics, provisioned Grafana alerting, automated linting + tests in CI, and a two-layer Terraform design (persistent foundation vs. ephemeral app).
+Readings are **Avro-encoded** on the wire and governed by a Confluent **Schema Registry**, so the
+contract is enforced at the broker rather than hoped for in the consumer.
 
----
+<table>
+<tr>
+<td width="50%"><img src="./images/kafka-messages.png" alt="sensor_data topic — Avro"><br><sub><b>The topic</b> — Avro-encoded readings on <code>sensor_data</code>, browsable in Kafka-UI. Note the <code>SchemaRegistry</code> value serde: these are not JSON blobs.</sub></td>
+<td width="50%"><img src="./images/kafka-schema.png" alt="Schema Registry — SensorReading"><br><sub><b>The contract</b> — the registered <code>SensorReading</code> schema that governs them. A producer that violates it is rejected before a consumer ever sees the message.</sub></td>
+</tr>
+</table>
 
-## 🚀 Key Features
+<table>
+<tr>
+<td width="50%"><img src="./images/kafka-rejected.png" alt="sensor_data_rejected — dead-letter topic"><br><sub><b>Nothing is dropped</b> — readings that fail validation are quarantined to <code>sensor_data_rejected</code>, each tagged with its <code>rejection_reason</code> (<code>invalid_humidity</code>, <code>pressure_out_of_range</code>, …). Inspectable, not lost.</sub></td>
+<td width="50%"><img src="./images/spark-streaming.png" alt="Spark Structured Streaming"><br><sub><b>What processes them</b> — the Spark UI's Structured Streaming tab: active queries, input and processing rates, and the latest batch IDs.</sub></td>
+</tr>
+</table>
 
-* **IoT Simulation:** Python simulator generating temperature, humidity, and pressure for 5 sensors, with a deliberate ~20% anomaly rate to exercise the cleaning logic.
-* **Schema-governed messaging:** Apache Kafka (single-node KRaft, no Zookeeper) with **Avro** payloads and a **Confluent Schema Registry**.
-* **Real-time processing:** Spark Structured Streaming for stateful, checkpointed time-series transformations.
-* **Data validation & DLQ:** Range + regex + schema checks; rejected rows routed to a dead-letter topic tagged with a `rejection_reason`.
-* **Dual storage:** Redis TimeSeries for live serving **and** BigQuery for analytics, written from the same job.
-* **Analytics marts:** dbt staging + marts on BigQuery, refreshed every 2 minutes by a Kubernetes CronJob.
-* **Live observability:** Per-batch data-quality + drift metrics on a dedicated Grafana row, plus Spark JVM/throughput metrics via Managed Prometheus.
-* **Drift alerting:** Provisioned Grafana alert rules push a Slack notification when any metric drifts beyond 3σ.
-* **Two deployment targets:** the same application code and container images run locally via Docker Compose and in the cloud on GKE Autopilot (Kubernetes manifests).
+The transform ([`scripts/spark_transform.py`](scripts/spark_transform.py)) does more than move data:
+payloads are deserialised against the registered Avro schema so types are fixed at the edge; messy
+string fields are regex-validated before casting; out-of-range hardware readings are filtered
+(temperature 10–45 °C, humidity 0–100 %, pressure 950–1050 hPa); and the Redis sink opens **one
+pipelined connection per Spark partition** via `.foreachPartition()`, pushing native `TS.ADD`
+commands with no ORM in the path.
 
----
+### Redis TimeSeries — the hot path
 
-## 📺 The Live Pipeline
+<table>
+<tr>
+<td width="50%"><img src="./images/redis-timeseries.png" alt="Redis — TS.MRANGE chart"><br><sub><b>The serving store</b> — <code>TS.MRANGE</code> across all five sensors' temperature, charted in RedisInsight. This is what Grafana reads.</sub></td>
+<td width="50%"><img src="./images/redis-keys.png" alt="Redis — TimeSeries keys"><br><sub><b>Underneath</b> — 15 labelled series (5 sensors × 3 metrics) alongside the <code>dq:*</code> and <code>drift:*</code> observability series the job publishes on every batch.</sub></td>
+</tr>
+</table>
 
-A walk through the running stack, stage by stage.
-
-### 1. Kafka — schema-governed ingestion
-Avro-encoded sensor readings land on the `sensor_data` topic, browsable in Kafka-UI (note the `SchemaRegistry` value serde).
-
-![sensor_data topic — Avro](./images/kafka-messages.png)
-
-Their structure is governed by the registered Avro schema (`SensorReading`) in the Schema Registry:
-
-![Schema Registry — SensorReading](./images/kafka-schema.png)
-
-Readings that fail validation aren't dropped — they're quarantined to the `sensor_data_rejected` dead-letter topic, each tagged with its `rejection_reason`:
-
-![sensor_data_rejected — dead-letter topic](./images/kafka-rejected.png)
-
-### 2. Spark — Structured Streaming
-The Spark UI's **Structured Streaming** tab — the active streaming queries processing micro-batches from Kafka, with their input/processing rates and latest batch IDs.
-
-![Spark Structured Streaming](./images/spark-streaming.png)
-
-### 3. Redis TimeSeries — the hot path
-`TS.MRANGE` across all 5 sensors' temperature, charted in RedisInsight — the low-latency serving store Grafana reads from.
-
-![Redis — TS.MRANGE chart](./images/redis-timeseries.png)
-
-Underneath: 15 labelled sensor series (5 sensors × 3 metrics) alongside the `dq:*` and `drift:*` observability series the job publishes each batch.
-
-![Redis — TimeSeries keys](./images/redis-keys.png)
-
-### 4. Grafana — live sensor dashboard
-All-sensors temperature and humidity, plus **Sensor 1**'s live gauges (current temperature/humidity) and pressure trend — auto-refreshing every 5 seconds.
-
-![Grafana — IoT Sensors](./images/grafana-sensors.png)
+Series carry labels rather than encoding everything in the key, so a dashboard filters by `metric`
+or `sensor_id` without string surgery, and `TS.ADD ... ON_DUPLICATE LAST` makes a replay idempotent.
 
 ---
 
-## 🛠️ Data Engineering & Transformation (PySpark)
+## Data quality and drift
 
-The core is the Spark Structured Streaming job ([`scripts/spark_transform.py`](scripts/spark_transform.py)). Instead of blindly moving data, it applies enterprise-grade practices:
+Observability here is a **first-class output of the pipeline**, not a wrapper around it. A third
+sink publishes per-batch accept rate, rejections by reason, and per-metric drift z-scores to Redis
+on every micro-batch.
 
-* **Schema enforcement & Avro:** Payloads are deserialized against a registered Avro schema (Schema Registry); types are fixed at the edge.
-* **Regex data cleaning:** Messy string fields (e.g. humidity) are validated via regex before casting to double.
-* **Range outlier filtering:** Drops nulls and out-of-range hardware readings — Temperature 10–45 °C, Humidity 0–100 %, Pressure 950–1050 hPa.
-* **Native Redis TimeSeries sink:** `.foreachPartition()` opens one pipelined connection per Spark partition and pushes metrics via native `TS.ADD` — no ORM overhead.
-* **BigQuery analytics sink:** A best-effort `foreachBatch` write lands every valid micro-batch in BigQuery (the analytics cold path). Errors are logged, never raised — analytics can't take down ingestion.
-* **Dead-letter queue:** Rows that fail validation are routed to `sensor_data_rejected` tagged with a `rejection_reason` (`invalid_humidity`, `pressure_out_of_range`, …) — inspectable, not silently dropped.
-* **Live data-quality & drift:** A third sink publishes per-batch accept rate, rejections by reason, and per-metric drift z-scores to Redis, surfaced on a dedicated Grafana **Data Quality & Drift** row with a 3σ alert band.
+<table>
+<tr>
+<td width="50%"><img src="./images/grafana-sensors.png" alt="Grafana — IoT Sensors"><br><sub><b>The readings</b> — all-sensor temperature and humidity, Sensor 1's live gauges and pressure trend, refreshing every 5 seconds.</sub></td>
+<td width="50%"><img src="./images/grafana-data-quality.png" alt="Grafana — Data Quality & Drift"><br><sub><b>The quality of those readings</b> — accept rate, rejections broken down by reason, and the per-metric drift z-score with its 3σ band. You can <i>see</i> data quality rather than trust it.</sub></td>
+</tr>
+</table>
+
+When the z-score crosses the band, the alert rule fires and posts to Slack — with a matching
+**resolved** message when it clears, so the channel does not fill with stale alarms:
+
+<table>
+<tr>
+<td width="50%"><img src="./images/alert-firing.png" alt="Grafana alert firing"><br><sub><b>In Grafana</b> — the provisioned rule's condition (<code>abs(z) is above 3</code>) flips to <b>Firing</b>. The rule is code, in <code>infra/grafana/provisioning/alerting/</code>, not a click.</sub></td>
+<td width="50%"><img src="./images/slack-alert.png" alt="Slack drift alert"><br><sub><b>In Slack</b> — the notification that reaches a human, naming the metric and the sensor that drifted.</sub></td>
+</tr>
+</table>
+
+Alongside the business-level signal, the Spark driver exposes Prometheus metrics: in the cloud, **GKE
+Managed Service for Prometheus** scrapes them into Cloud Monitoring, where streaming throughput,
+micro-batch latency and JVM heap/GC are queryable. Locally, a self-hosted Prometheus backs the same
+**Pipeline Health** dashboard.
 
 ---
 
-## 📈 Analytics — BigQuery + dbt
+## Analytics — BigQuery and dbt
 
-The streaming job lands two raw tables in BigQuery (`telemetry.readings`, `telemetry.rejections`, day-partitioned with a 30-day expiry). **dbt** ([`dbt/`](dbt/)) turns them into clean, tested marts:
+The streaming job lands two raw tables (`telemetry.readings`, `telemetry.rejections`,
+day-partitioned with a 30-day expiry). **dbt** turns them into clean, tested marts — six models
+across a staging and a marts layer:
 
 | Layer | Models |
 |---|---|
 | **Staging** | `stg_readings`, `stg_rejections` — typed, renamed views over the raw landing tables |
-| **Marts** | `sensor_minutely` (per-sensor/min aggregates), `accept_rate_minutely`, `rejections_by_reason`, `reading_volume` |
-
-In the cloud, a Kubernetes **CronJob runs `dbt build` every 2 minutes**, so the marts track the live stream; **Looker Studio** sits on top for BI-style exploration. The same models also run from your laptop via `make dbt-build` — dbt-bigquery targets BigQuery, so it needs GCP credentials (there's no local warehouse).
+| **Marts** | `sensor_minutely`, `accept_rate_minutely`, `rejections_by_reason`, `reading_volume` |
 
 ![BigQuery — readings table](./images/bigquery-readings.png)
 
----
-
-## 🔔 Observability & Alerting
-
-Observability is treated as a first-class output of the pipeline, not an afterthought.
-
-**Data quality & drift (business-level).** Every micro-batch publishes its accept rate, rejection breakdown, and per-metric drift z-score to Redis, rendered on a dedicated Grafana row. The drift z-test compares each batch mean to the commissioning baseline — the thing a range filter is blind to.
-
-![Grafana — Data Quality & Drift](./images/grafana-data-quality.png)
-
-And here's the moment it matters — a sensor's drift z-score erupts to **5.5σ**, crosses the **3σ** control limit, and the provisioned alert rule's condition (`abs(z) is above 3`) flips to **Firing**. Every reading was still *inside* its valid range; only the statistical drift gave it away:
-
-![Grafana — drift z-score crossing 3σ, alert firing](./images/drift-alert.png)
-
-**Spark internals (system-level).** The Spark driver exposes Prometheus metrics; in the cloud **GKE Managed Service for Prometheus (GMP)** scrapes them into **Cloud Monitoring**, where streaming throughput, micro-batch latency, and JVM heap/GC are queryable. (Locally, a self-hosted Prometheus backs the same Grafana **Pipeline Health** dashboard.)
-
-**Drift → Slack.** Grafana alerting is fully provisioned ([`infra/grafana/provisioning/alerting/`](infra/grafana/provisioning/alerting/)): when any metric drifts past **3σ**, the rule fires and posts to Slack — with a matching **resolved** message when it clears.
-
-| Alert fires in Grafana | Notification in Slack |
-|---|---|
-| ![Grafana alert firing](./images/alert-firing.png) | ![Slack drift alert](./images/slack-alert.png) |
+<sub><b>The cold path</b> — the raw landing table in BigQuery, day-partitioned with a 30-day expiry so the demo does not accumulate cost. In the cloud a Kubernetes <b>CronJob runs <code>dbt build</code> every 2 minutes</b>, so the marts track the live stream; Looker Studio sits on top.</sub>
 
 ---
 
-## ☁️ Cloud-Native Deployment (GCP)
+## Cloud-native deployment
 
-The whole stack deploys to **GCP as a cloud-native application** — **GKE Autopilot**, provisioned with **Terraform** and shipped by **GitHub Actions**, with **no service-account keys anywhere**.
+The stack deploys to GCP as a cloud-native application — **GKE Autopilot**, provisioned with
+Terraform, shipped by GitHub Actions, with **no service-account keys anywhere**.
 
-It's designed to be **ephemeral**: deploy for a demo, then tear the app layer down. The persistent foundation (identity, secrets, registry, BigQuery) costs ~cents idle; the GKE workloads are the only real spend, and one action destroys them.
-
-### Design — two Terraform layers
+### Two Terraform layers, two lifecycles
 
 | Layer | Lifecycle | Provisions |
 |---|---|---|
 | **`foundation/`** | Run **once** by the owner (`make bootstrap`); persists | Workload Identity Federation, deployer + runtime service accounts, Secret Manager (values seeded from `.env`), Artifact Registry, **BigQuery** dataset + tables, monitoring |
-| **`app/`** | Routine, **CI- or CLI-deployable**; ephemeral | VPC + Cloud NAT, **GKE Autopilot** (private control plane), fleet membership, the pod-level Workload Identity binding |
+| **`app/`** | Routine, CI- or CLI-deployable; **ephemeral** | VPC + Cloud NAT, **GKE Autopilot** (private control plane), fleet membership, the pod-level Workload Identity binding |
 
-**Keyless everywhere:** GitHub Actions authenticates to GCP via **Workload Identity Federation** (OIDC, locked to this repo). Pods authenticate to Google APIs (BigQuery, Secret Manager) via **Workload Identity**. `kubectl` reaches the **private** GKE control plane through **Connect Gateway** — no bastion, no public endpoint, no keys.
+The split is the cost control: the foundation costs ~cents idle, the GKE workloads are the only real
+spend, and one action destroys them.
 
-### Step 1 — `make bootstrap` (owner, once)
+**Keyless end to end.** GitHub Actions authenticates to GCP via **Workload Identity Federation**
+(OIDC, with an attribute condition pinned to this repository). Pods authenticate to Google APIs via
+**Workload Identity**. `kubectl` reaches a **private** control plane — private nodes *and* a private
+endpoint — through **Connect Gateway**: no bastion, no public endpoint, no keys. Secrets are pulled
+from Secret Manager through the GKE-managed **Secrets Store CSI** provider and materialised as a
+Kubernetes Secret when the first pod mounts them, so no credential is written into a manifest.
 
-Applies the foundation and seeds secret **values** from your local `.env` into Secret Manager — a single command for the whole identity + secrets + registry + BigQuery base.
+### The three steps
 
 ![make bootstrap](./images/make-bootstrap.png)
 
-### Step 2 — Build & push images (CI, on push)
+<sub><b>Step 1 · <code>make bootstrap</code></b> (owner, once) — applies the foundation and seeds the secret <i>values</i> from your local <code>.env</code> into Secret Manager. One command for the whole identity, secrets, registry and BigQuery base.</sub>
 
-The **build-images** workflow builds the simulator, Spark, and dbt images and pushes them to Artifact Registry on every relevant push (tagged `:sha` and `:latest`).
+<table>
+<tr>
+<td width="50%"><img src="./images/build-images.png" alt="Build images workflow"><br><sub><b>Step 2 · build and push</b> — the simulator, Spark and dbt images go to Artifact Registry on every relevant push, tagged <code>:sha</code> and <code>:latest</code>.</sub></td>
+<td width="50%"><img src="./images/deploy-workflow.png" alt="Deploy workflow"><br><sub><b>Step 3 · one-button deploy</b> — a <code>workflow_dispatch</code> that applies the app layer and then deploys the Kubernetes manifests through Connect Gateway.</sub></td>
+</tr>
+</table>
 
-![Build images workflow](./images/build-images.png)
-
-### Step 3 — One-button deploy (CI)
-
-The **Terraform** workflow (`workflow_dispatch`) runs `terraform apply` on the app layer, then deploys the Kubernetes manifests via Connect Gateway — the entire cloud stack from one button.
-
-![Deploy workflow](./images/deploy-workflow.png)
-
-The result: the full pipeline running as pods on GKE Autopilot…
-
-![GKE workloads](./images/gke-workloads.png)
-
-…on a private Autopilot cluster:
-
-![GKE cluster](./images/gke-cluster.png)
+<table>
+<tr>
+<td width="50%"><img src="./images/gke-workloads.png" alt="GKE workloads"><br><sub><b>The result</b> — the full pipeline running as pods on GKE Autopilot: simulator, Spark processor, Redis, Grafana and the dbt CronJob.</sub></td>
+<td width="50%"><img src="./images/gke-cluster.png" alt="GKE cluster"><br><sub><b>On a private cluster</b> — Autopilot, private nodes and a private control plane. Google manages the nodes; pods request CPU and memory directly.</sub></td>
+</tr>
+</table>
 
 ### The GCP footprint
 
 <table>
   <tr>
     <td align="center"><img src="./images/terraform-state.png" width="100%"><br><sub>GCS — Terraform remote state</sub></td>
-    <td align="center"><img src="./images/artifact-registry.png" width="100%"><br><sub>Artifact Registry — images</sub></td>
+    <td align="center"><img src="./images/artifact-registry.png" width="100%"><br><sub>Artifact Registry — the three images</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="./images/workload-identity.png" width="100%"><br><sub>Workload Identity Federation (keyless CI)</sub></td>
-    <td align="center"><img src="./images/secret-manager.png" width="100%"><br><sub>Secret Manager</sub></td>
+    <td align="center"><img src="./images/workload-identity.png" width="100%"><br><sub>Workload Identity Federation — keyless CI</sub></td>
+    <td align="center"><img src="./images/secret-manager.png" width="100%"><br><sub>Secret Manager — values, never in git</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="./images/connect-gateway.png" width="100%"><br><sub>GKE Fleet dashboard — 1 cluster, healthy</sub></td>
+    <td align="center"><img src="./images/connect-gateway.png" width="100%"><br><sub>GKE Fleet — one cluster, healthy</sub></td>
     <td align="center"><img src="./images/cloud-monitoring.png" width="100%"><br><sub>Cloud Monitoring (GMP) dashboards</sub></td>
   </tr>
 </table>
 
-### Lifecycle (Makefile front door)
-
-```bash
-make bootstrap     # ONE-TIME: foundation apply + seed secrets from .env (owner)
-make k8s-images    # build + push simulator / spark / dbt images to Artifact Registry
-make cloud-up      # terraform apply the app layer (VPC + NAT + GKE Autopilot)
-make k8s-kubeconfig# point kubectl at the private cluster via Connect Gateway
-make k8s-apply     # deploy the Kubernetes manifests
-make cloud-down    # destroy the app layer (foundation + BigQuery + secrets persist) → ~$0
-```
-
-> Routine deploys/destroys also run from the **GitHub Actions** UI (keyless), so you never need credentials on your laptop. See [`infra/terraform/README.md`](infra/terraform/README.md).
+<sub>The footprint, as a contact sheet — every one of these is created by <code>terraform apply</code>, not by clicking.</sub>
 
 ---
 
-## 💻 Local Development (Docker Compose)
+## Local development
 
-The full **streaming** stack also runs locally — ideal for development and to run the test suite without any cloud. (The BigQuery + dbt analytics layer is cloud-only — it targets managed BigQuery.)
+The full **streaming** stack runs on Docker Compose — ideal for development and for running the test
+suite with no cloud at all. *(The BigQuery + dbt analytics layer is cloud-only: dbt-bigquery targets
+managed BigQuery, so there is no local warehouse.)*
+
+## Quickstart
 
 ```bash
 # 1. One-time setup: venv, deps, data dirs, and a .env from the template
-chmod +x setup.sh run.sh
-./setup.sh
+chmod +x setup.sh run.sh && ./setup.sh
 
 # 2. Build the custom simulator + Spark images
-make build          # or: ./run.sh build
+make build
 
 # 3. Start the full stack (Kafka, Spark, Redis, Grafana, Kafka-UI, RedisInsight)
-make start          # or: ./run.sh up
+make start
 
 # 4. Verify, stream logs, tear down
-make ps             # container statuses
-make logs           # live logs (Ctrl+C detaches)
-make stop           # stop + remove containers
+make ps | logs | stop
 ```
 
-Then open **Grafana** at `http://localhost:3000` (login `admin` / `GRAFANA_ADMIN_PASSWORD`, default `admin`) — the Redis datasource and dashboards are auto-provisioned. Full service URLs/ports are in [CLAUDE.md](./CLAUDE.md).
+Then open **Grafana** at `http://localhost:3000` — the Redis datasource and both dashboards are
+auto-provisioned. Full service URLs and ports are in [CLAUDE.md](./CLAUDE.md).
 
-> Configuration is injected at runtime via docker-compose `environment:` blocks — the `.env` file is only used when running the Python scripts locally on the host.
-
----
-
-## 📂 Project Structure
-
-```text
-realtime-telemetry-pipeline/
-├── .github/workflows/        # CI (ruff + pytest), build-images, terraform deploy, gitleaks
-├── app/                      # Streamlit "Sensor Wall" — standalone deployable
-├── dbt/                      # dbt project: staging views + BigQuery marts (+ tests)
-│   └── models/
-│       ├── staging/          # stg_readings, stg_rejections
-│       └── marts/            # sensor_minutely, accept_rate_minutely, rejections_by_reason, reading_volume
-├── docker/
-│   ├── Dockerfile.simulator  # Python sensor simulator
-│   ├── Dockerfile.spark      # PySpark job (+ Kafka/Avro/BigQuery connectors)
-│   └── Dockerfile.dbt        # dbt-bigquery runner (the CronJob image)
-├── infra/
-│   ├── docker-compose.yml    # Local stack (Kafka in KRaft mode)
-│   ├── grafana/              # Provisioned datasource, dashboards, and Slack alerting
-│   ├── k8s/base/             # Kustomize manifests for the whole GKE stack
-│   └── terraform/
-│       ├── foundation/       # Persistent: WIF, SAs, secrets, Artifact Registry, BigQuery
-│       └── app/              # Ephemeral: VPC, NAT, GKE Autopilot, fleet, WI binding
-├── scripts/
-│   ├── sensor_simulator.py   # Kafka producer; ~20% deliberate anomalies
-│   ├── metrics_spec.py       # Data contract: valid ranges + drift baselines (single source of truth)
-│   ├── data_quality.py       # Per-batch DQ metrics → Redis TS
-│   ├── drift.py              # Statistical drift (z-test vs baseline) → Redis TS
-│   └── spark_transform.py    # Spark job: valid → Redis + BigQuery, rejected → DLQ, DQ/drift → Redis
-├── tests/                    # Pytest suite (clean/rejected data, DQ, drift, Redis sink, simulator, app)
-├── Makefile                  # Task runner: local stack, tests, dbt, k8s, and cloud lifecycle
-├── run.sh / setup.sh         # Docker Compose wrapper + one-time local setup
-└── requirements*.txt         # Runtime + dev dependencies
-```
-
----
-
-## 🧪 Tests & Code Quality
-
-The transformation and observability logic is unit-tested in isolation — **no Kafka, Redis, Spark cluster, or Docker required**. Tests run against a local `SparkSession` (session-scoped fixture) and a mocked Redis client, so the suite is fast and CI-friendly.
+**In the cloud**, the Makefile is the same front door:
 
 ```bash
-source .venv/bin/activate     # created by ./setup.sh
-
-make test        # pytest — full suite
-make coverage    # pytest with a coverage report (terminal + htmlcov/)
-make lint        # ruff check scripts/ tests/ app/
+make bootstrap      # ONE-TIME: foundation apply + seed secrets from .env (owner)
+make k8s-images     # build + push simulator / spark / dbt images
+make cloud-up       # terraform apply the app layer (VPC + NAT + GKE Autopilot)
+make k8s-kubeconfig # point kubectl at the private cluster via Connect Gateway
+make k8s-apply      # deploy the Kubernetes manifests
+make cloud-down     # destroy the app layer → ~$0 (foundation + BigQuery + secrets persist)
 ```
 
-What's covered:
+Routine deploys and destroys also run from the **GitHub Actions** UI (keyless), so you never need
+credentials on your laptop.
 
-| Area | Tests |
+---
+
+## Testing
+
+**102 tests** covering the transformation and observability logic in isolation — **no Kafka, no
+Redis, no Spark cluster, no Docker**. They run against a local `SparkSession` (session-scoped
+fixture) and a mocked Redis client, so the suite is fast and CI-friendly.
+
+```bash
+source .venv/bin/activate
+make test        # pytest — the full suite
+make coverage    # with a coverage report (terminal + htmlcov/)
+make lint        # ruff over scripts/, tests/, app/
+```
+
+| Area | What is asserted |
 |---|---|
-| `clean_data()` | range/boundary filtering, regex humidity casting, schema/type enforcement via `from_json` |
-| `rejected_data()` | every rejection reason; valid + rejected exactly partition the input |
-| Data quality | per-batch accept rate and rejection breakdown (`data_quality.py`) |
-| Drift | z-score vs baseline, alert threshold, empty/degenerate batches (`drift.py`) |
-| Redis sink | key scheme, ms conversion, idempotent `TS.ADD` args (mocked client) |
-| Simulator | message schema, ~20% anomaly rate per type, deterministic-by-seed output |
-| Streamlit app | demo synthesis, banding, pivots, and a **contract-drift guard** asserting the app's ranges still match `metrics_spec.py` |
+| `clean_data()` | Range and boundary filtering, regex humidity casting, schema enforcement via `from_json` |
+| `rejected_data()` | Every rejection reason — and that valid + rejected **exactly partition** the input |
+| Data quality | Per-batch accept rate and rejection breakdown |
+| Drift | Z-score against baseline, the alert threshold, and empty/degenerate batches |
+| Redis sink | Key scheme, ms conversion, idempotent `TS.ADD` arguments (mocked client) |
+| Simulator | Message schema, the ~20% anomaly rate per type, deterministic-by-seed output |
+| Streamlit app | Demo synthesis, banding, pivots, and a **contract-drift guard** asserting the app's ranges still match `metrics_spec.py` |
 
-CI ([.github/workflows/ci.yml](./.github/workflows/ci.yml)) runs the lint and the full suite (with coverage) on every push and pull request. The same `ruff` check is available as an optional pre-commit hook ([.pre-commit-config.yaml](./.pre-commit-config.yaml)).
+**99 of the 102 run by default.** The other three are marked `integration` and deselected in
+`pyproject.toml` because they need a Docker daemon — run them deliberately with `pytest -m
+integration`.
 
----
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs **four** gates on every push and
+pull request, not just the unit tests: `lint-and-test`, `compose-validate` (the local stack's
+Compose file parses and resolves), `dbt-validate` (the models compile) and `k8s-validate` (the
+Kustomize manifests build). Together they mean a broken manifest or a broken dbt model fails the
+pull request rather than the deploy.
 
-## 🏭 Production Considerations
-
-This is a **portfolio project**, but it deliberately closes most of the gap between a demo and production by deploying cloud-native. The honest state of each concern:
-
-| Concern | This project | Further hardening for production |
-|---|---|---|
-| **Orchestration** | GKE **Autopilot** — Google manages nodes; pods request CPU/memory directly. | Multi-zone node pools, PodDisruptionBudgets, HPA on the stream processor. |
-| **Identity & secrets** | **Keyless** end-to-end — WIF for CI, Workload Identity for pods, secrets in **Secret Manager** (never in git/tfstate). | Add per-environment projects, secret rotation, and least-privilege audits. |
-| **High availability** | Single Kafka broker (KRaft, `replication-factor=1`); Spark single driver. | ≥3 brokers, `replication-factor=3`, `min.insync.replicas=2`; Spark on multiple executors (or Dataproc). |
-| **Network** | **Private** GKE control plane (Connect Gateway only), Cloud NAT for egress, no public ingress. | Authorized networks per environment, mTLS between services, NetworkPolicies. |
-| **Analytics** | BigQuery landing tables + dbt marts, day-partitioned with expiry; CronJob refresh. | Incremental models, partition pruning at scale, dbt CI checks on marts. |
-| **Data source** | A simulator emits synthetic readings (~20% anomalies by design). | Real device telemetry (MQTT bridge / Kafka Connect) — same contract, cleaning, and observability. |
-
-The transformation, data-quality, drift, contract, and IaC logic are written to be production-grade already — what changes for production is mostly **scale and redundancy of the infrastructure**, not the pipeline code.
+**What the tests do not cover:** anything that needs the cloud. There is no test that a Terraform
+plan is correct, that Workload Identity actually binds, or that the Secrets Store CSI provider
+materialises the secret — those are proven by the screenshots above, from real runs, not by
+assertions in CI.
 
 ---
 
-## 📜 License
+## Repository layout
 
-This project is licensed under the [MIT License](./LICENSE).
+| Path | Purpose |
+|---|---|
+| [`scripts/`](scripts/) | The pipeline: simulator, **`metrics_spec.py`** (the contract — ranges *and* drift baselines), data-quality metrics, drift detector, and the Spark job |
+| [`dbt/`](dbt/) | Six models — staging views over the raw landing tables, four BigQuery marts, with tests |
+| [`docker/`](docker/) | Three images: the simulator, the PySpark job (+ Kafka/Avro/BigQuery connectors), and the dbt-bigquery CronJob runner |
+| [`infra/docker-compose.yml`](infra/docker-compose.yml) | The local stack — Kafka in KRaft mode, no Zookeeper |
+| [`infra/grafana/`](infra/grafana/) | Provisioned datasource, two dashboards, and the Slack alerting rules — all as code |
+| [`infra/k8s/base/`](infra/k8s/base/) | Kustomize manifests for the whole GKE stack, including the Secrets Store CSI wiring |
+| [`infra/terraform/foundation/`](infra/terraform/foundation/) | Persistent: WIF, service accounts, Secret Manager, Artifact Registry, BigQuery |
+| [`infra/terraform/app/`](infra/terraform/app/) | Ephemeral: VPC, NAT, GKE Autopilot, fleet, the Workload Identity binding |
+| [`app/`](app/) | Streamlit "Sensor Wall" — standalone deployable |
+| [`tests/`](tests/) | 102 tests — pure logic, no containers |
+
+---
+
+## What this does not do
+
+- **The data source is a simulator.** Five synthetic sensors with a deliberate ~20% anomaly rate.
+  Real device telemetry (an MQTT bridge or Kafka Connect) would use the same contract, cleaning and
+  observability — but no real hardware has ever fed this pipeline, and the drift baselines are
+  commissioning values chosen for the demo rather than measured from a fleet.
+- **Single Kafka broker, single Spark driver.** KRaft with `replication-factor=1` and one driver.
+  There is no high availability here: ≥3 brokers with `min.insync.replicas=2` and Spark across
+  multiple executors (or Dataproc) is what production would need, and none of it is demonstrated.
+- **The drift detector is a z-test against a static baseline.** It catches a shift in the mean. It
+  does not catch a change in variance, a stuck sensor repeating one plausible value, or a slow ramp
+  that moves the baseline with it. Nothing recalibrates the baseline automatically.
+- **Drift is detected, never acted upon.** The alert reaches Slack. No run fails, no sensor is
+  quarantined, nothing downstream is held back.
+- **The WIF attribute condition is scoped to the repository, not to a branch or environment.** Any
+  workflow in this repository can federate. See [SECURITY.md](SECURITY.md).
+- **The dbt marts are refreshed on a 2-minute CronJob, not incrementally.** At this data size that
+  is fine; at scale the models would need to be incremental with partition pruning, and dbt CI checks
+  on the marts.
+- **The analytics layer is cloud-only.** `dbt-bigquery` targets managed BigQuery, so the local
+  Docker stack covers streaming and observability but not the marts.
+
+---
+
+## Cost
+
+**Designed to be ephemeral, and that is the cost control.** The persistent `foundation/` layer —
+identity, secrets, Artifact Registry, the BigQuery dataset — costs approximately cents while idle.
+The GKE Autopilot workloads are the only real spend, and `make cloud-down` (or the destroy action)
+removes them.
+
+BigQuery keeps the bill bounded on its own: both landing tables are **day-partitioned with a 30-day
+expiry**, so the demo cannot accumulate storage indefinitely. The local Docker stack costs nothing
+beyond the ~8 GB of RAM it wants.
+
+There is no always-on cluster in the design. Between demos, the standing cost is the foundation and
+whatever is left in BigQuery and Artifact Registry.
+
+---
+
+## Docs
+
+[CLAUDE.md](./CLAUDE.md) — the engineering reference: service ports, the end-to-end data flow, test
+coverage and known failure modes ·
+[infra/terraform/README](infra/terraform/README.md) — the two layers and the bootstrap ·
+[docs/looker-studio.md](docs/looker-studio.md) · [CHANGELOG](CHANGELOG.md)
+
+## Security
+
+What is hardened, the known limitations, and what a real deployment would do instead:
+[SECURITY.md](SECURITY.md). The short version — no service-account key exists anywhere: CI federates
+through Workload Identity Federation, pods through Workload Identity, and secrets are pulled from
+Secret Manager through the CSI provider rather than written into a manifest. The GKE control plane is
+private, reachable only through Connect Gateway, and gitleaks scans the full history on every push.
+
+## License
+
+[MIT](./LICENSE) © 2026 Theofanis Tsakanikas
