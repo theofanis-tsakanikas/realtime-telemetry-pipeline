@@ -38,6 +38,11 @@ images/archive/
 # personal working files for the demo video — not part of the shipped project.
 promo/
 
+# === Personal study notes (kept locally, never committed) ===
+# Greek study material: project overview + streaming/cloud concept cheat-sheets.
+# Personal learning aids, not part of the shipped project.
+notes/
+
 # === OS specifics ===
 .DS_Store
 Thumbs.db
