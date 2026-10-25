@@ -55,3 +55,6 @@ PRE-PUBLISH.md
 *.key
 *.p12
 *.pfx
+
+# === LinkedIn content bank — local only, never published ===
+linkedin/
